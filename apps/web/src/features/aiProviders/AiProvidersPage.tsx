@@ -4,6 +4,7 @@ import {
   buildProviderRows,
   ClaudeEditDrawer,
   CodexEditDrawer,
+  CombosSection,
   filterAndSortProviderRows,
   GeminiEditDrawer,
   OpenAIEditDrawer,
@@ -1683,6 +1684,8 @@ export function AiProvidersPage() {
               )}
           </Card>
         </div>
+
+        <CombosSection disabled={actionsDisabled} allModelNames={allModelNames} />
       </div>
 
       <ProviderDetailDrawer

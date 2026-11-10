@@ -7,9 +7,12 @@ import type {
   DevinQuotaState,
   KimiQuotaState,
   MetaQuotaState,
+  MistralQuotaState,
+  OpencodeQuotaState,
   QuotaResetAccuracy,
   XaiBillingSummary,
   XaiQuotaState,
+  ZaiQuotaState,
 } from '@/types';
 import {
   isValidQuotaResetAtMs,
@@ -80,6 +83,9 @@ export interface AccountQuotaStores {
   devinQuota: Record<string, DevinQuotaState>;
   kimiQuota: Record<string, KimiQuotaState>;
   metaQuota: Record<string, MetaQuotaState>;
+  mistralQuota?: Record<string, MistralQuotaState>;
+  zaiQuota?: Record<string, ZaiQuotaState>;
+  opencodeQuota?: Record<string, OpencodeQuotaState>;
   xaiQuota: Record<string, XaiQuotaState>;
 }
 
@@ -285,6 +291,8 @@ export const normalizeAccountProvider = (file: AuthFileItem): string => {
   const key = raw.toLowerCase().replace(/_/g, '-');
   if (key === 'x-ai' || key === 'grok') return 'xai';
   if (key === 'muse') return 'meta';
+  if (key === 'opencode-go') return 'opencode';
+  if (key === 'z-ai' || key === 'z.ai' || key === 'glm') return 'zai';
   return key || 'unknown';
 };
 
@@ -1137,6 +1145,40 @@ export const resolveAccountQuota = (
 
   if (provider === 'meta') {
     const quota = getCredentialScopedQuotaState(stores.metaQuota, file);
+    if (!quota) return emptyQuota(filePlanType);
+    const planType = quota.plan ?? filePlanType;
+    if (quota.status === 'loading') return loadingQuota(planType);
+    if (quota.status === 'error')
+      return quotaFromError(quota.error, planType, quota.errorStatus, quota.failedAtMs);
+    return quotaFromRemainingWindows(
+      quota.windows.map((window) => ({
+        remainingPercent:
+          typeof window.usedPercent === 'number' && Number.isFinite(window.usedPercent)
+            ? Math.max(0, Math.min(100, 100 - window.usedPercent))
+            : null,
+        usedPercent: window.usedPercent,
+        resetAtMs: window.resetAtMs,
+        resetAccuracy: window.resetAccuracy ?? 'unknown',
+      })),
+      planType,
+      {
+        fetchedAtMs: quota.fetchedAtMs,
+        observedAtMs: quota.observedAtMs,
+        observedQuotaAtMs:
+          quota.windows.find((w) => w.quotaProgressObservedAtMs !== null)
+            ?.quotaProgressObservedAtMs ?? undefined,
+      }
+    );
+  }
+
+  if (provider === 'mistral' || provider === 'zai' || provider === 'opencode') {
+    const storeMap =
+      provider === 'mistral'
+        ? stores.mistralQuota
+        : provider === 'zai'
+          ? stores.zaiQuota
+          : stores.opencodeQuota;
+    const quota = storeMap ? getCredentialScopedQuotaState(storeMap, file) : undefined;
     if (!quota) return emptyQuota(filePlanType);
     const planType = quota.plan ?? filePlanType;
     if (quota.status === 'loading') return loadingQuota(planType);

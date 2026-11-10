@@ -4,7 +4,14 @@
  */
 
 // OAuth 提供商类型
-export type OAuthProvider = 'codex' | 'anthropic' | 'antigravity' | 'kimi';
+export type OAuthProvider =
+  | 'codex'
+  | 'anthropic'
+  | 'antigravity'
+  | 'kimi'
+  | 'cursor'
+  | 'mistral'
+  | 'zai';
 
 // OAuth 流程状态
 export interface OAuthFlow {

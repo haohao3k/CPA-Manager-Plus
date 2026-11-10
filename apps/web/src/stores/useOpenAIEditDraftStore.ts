@@ -27,6 +27,7 @@ export type OpenAIEditBaseline = {
   priority: number | null;
   prefix: string;
   baseUrl: string;
+  wireApi: 'chat' | 'responses';
   disableCooling: CoolingPolicy;
   headers: Array<{ key: string; value: string }>;
   apiKeyEntries: Array<{
@@ -75,6 +76,7 @@ const buildEmptyForm = (): OpenAIFormState => ({
   name: '',
   prefix: '',
   baseUrl: '',
+  wireApi: 'chat',
   headers: [],
   apiKeyEntries: [buildApiKeyEntry()],
   modelEntries: [{ name: '', alias: '' }],

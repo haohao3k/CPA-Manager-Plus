@@ -1,13 +1,15 @@
 package model
 
 type AdminCredential struct {
-	Version     int    `json:"version"`
-	Salt        string `json:"salt"`
-	KeyHash     string `json:"keyHash"`
-	Iterations  int    `json:"iterations"`
-	CreatedAtMS int64  `json:"createdAtMs"`
-	RotatedAtMS int64  `json:"rotatedAtMs,omitempty"`
-	Source      string `json:"source,omitempty"`
+	Version        int    `json:"version"`
+	Salt           string `json:"salt"`
+	KeyHash        string `json:"keyHash"`
+	Iterations     int    `json:"iterations"`
+	CreatedAtMS    int64  `json:"createdAtMs"`
+	RotatedAtMS    int64  `json:"rotatedAtMs,omitempty"`
+	Source         string `json:"source,omitempty"`
+	FailedAttempts int    `json:"failedAttempts,omitempty"`
+	LockedUntilMS  int64  `json:"lockedUntilMs,omitempty"`
 }
 
 type BootstrapState struct {

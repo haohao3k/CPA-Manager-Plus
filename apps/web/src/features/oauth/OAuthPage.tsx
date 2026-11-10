@@ -61,6 +61,10 @@ import iconGrokDark from '@/assets/icons/grok-dark.svg';
 import iconDevin from '@/assets/icons/devin.svg';
 import iconDevinDark from '@/assets/icons/devin-dark.svg';
 import iconMeta from '@/assets/icons/meta.svg';
+import iconCursor from '@/assets/icons/cursor.svg';
+import iconMistral from '@/assets/icons/mistral.svg';
+import iconGlm from '@/assets/icons/glm.svg';
+import iconOpenCode from '@/assets/icons/opencode.svg';
 
 interface ProviderState {
   url?: string;
@@ -96,6 +100,17 @@ interface VertexImportState {
   loading: boolean;
   error?: string;
   result?: VertexImportResult;
+}
+
+type QuickApiKeyProvider = 'opencode' | 'zai' | 'mistral';
+
+interface QuickApiKeyState {
+  provider: QuickApiKeyProvider;
+  apiKey: string;
+  label: string;
+  loading: boolean;
+  error?: string;
+  savedFile?: string;
 }
 
 interface BuiltInProviderDefinition {
@@ -180,6 +195,27 @@ const BUILT_IN_PROVIDERS: BuiltInProviderDefinition[] = [
     hintKey: 'auth_login.meta_oauth_hint',
     urlLabelKey: 'auth_login.meta_oauth_url_label',
     icon: iconMeta,
+  },
+  {
+    id: 'cursor',
+    titleKey: 'auth_login.cursor_oauth_title',
+    hintKey: 'auth_login.cursor_oauth_hint',
+    urlLabelKey: 'auth_login.cursor_oauth_url_label',
+    icon: iconCursor,
+  },
+  {
+    id: 'mistral',
+    titleKey: 'auth_login.mistral_oauth_title',
+    hintKey: 'auth_login.mistral_oauth_hint',
+    urlLabelKey: 'auth_login.mistral_oauth_url_label',
+    icon: iconMistral,
+  },
+  {
+    id: 'zai',
+    titleKey: 'auth_login.zai_oauth_title',
+    hintKey: 'auth_login.zai_oauth_hint',
+    urlLabelKey: 'auth_login.zai_oauth_url_label',
+    icon: iconGlm,
   },
 ];
 
@@ -303,6 +339,12 @@ export function OAuthPage() {
   const [vertexState, setVertexState] = useState<VertexImportState>({
     fileName: '',
     location: '',
+    loading: false,
+  });
+  const [quickKeyState, setQuickKeyState] = useState<QuickApiKeyState>({
+    provider: 'opencode',
+    apiKey: '',
+    label: '',
     loading: false,
   });
   const pollingTimers = useRef<Partial<Record<string, number>>>({});
@@ -1084,6 +1126,78 @@ export function OAuthPage() {
     }
   };
 
+  const handleQuickApiKeySave = async () => {
+    const apiKey = quickKeyState.apiKey.trim();
+    if (!apiKey) {
+      const message = t('auth_login.quick_api_key_required', {
+        defaultValue: 'Please enter an API key.',
+      });
+      setQuickKeyState((prev) => ({ ...prev, error: message, savedFile: undefined }));
+      showNotification(message, 'warning');
+      return;
+    }
+    const importConnectionFingerprint = connectionFingerprint;
+    if (!importConnectionFingerprint) return;
+    const provider = quickKeyState.provider;
+    const rawLabel = quickKeyState.label.trim();
+    const safeSuffix =
+      rawLabel.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') ||
+      String(Date.now());
+    const fileName = `${provider}-${safeSuffix}.json`;
+    const payload: Record<string, string> = {
+      type: provider,
+      api_key: apiKey,
+      ...(rawLabel ? { label: rawLabel } : {}),
+    };
+    setQuickKeyState((prev) => ({
+      ...prev,
+      loading: true,
+      error: undefined,
+      savedFile: undefined,
+    }));
+    try {
+      const file = new File([JSON.stringify(payload, null, 2)], fileName, {
+        type: 'application/json',
+      });
+      const res = await authFilesApi.upload(file, requestScope);
+      if (res.failed.length > 0 || res.uploaded === 0) {
+        throw new Error(res.failed[0]?.error || t('notification.upload_failed'));
+      }
+      recordAccountCredentialMutationMarker({
+        connectionFingerprint: importConnectionFingerprint,
+        provider,
+      });
+      publishAccountCredentialMutationRevision({
+        connectionFingerprint: importConnectionFingerprint,
+        provider,
+        kind: 'credential',
+      });
+      setQuickKeyState((prev) => ({
+        ...prev,
+        apiKey: '',
+        loading: false,
+        error: undefined,
+        savedFile: fileName,
+      }));
+      showNotification(
+        t('auth_login.quick_api_key_saved', {
+          defaultValue: 'API key credential saved ({{file}}).',
+          file: fileName,
+        }),
+        'success'
+      );
+    } catch (err: unknown) {
+      const message = getErrorMessage(err) || t('notification.upload_failed');
+      setQuickKeyState((prev) => ({
+        ...prev,
+        loading: false,
+        error: message,
+        savedFile: undefined,
+      }));
+      showNotification(message, 'error');
+    }
+  };
+
   return (
     <div className={styles.container}>
       <div className={styles.content}>
@@ -1271,6 +1385,129 @@ export function OAuthPage() {
             </div>
           );
         })}
+
+        {/* OpenCode Go / API Key Quick-Save */}
+        <div id="oauth-provider-opencode">
+          <Card
+            title={
+              <span className={styles.cardTitle}>
+                <img
+                  src={
+                    quickKeyState.provider === 'zai'
+                      ? iconGlm
+                      : quickKeyState.provider === 'mistral'
+                        ? iconMistral
+                        : iconOpenCode
+                  }
+                  alt=""
+                  className={styles.cardTitleIcon}
+                />
+                {t('auth_login.opencode_apikey_title', {
+                  defaultValue: 'OpenCode Go / Coding Plan API Key',
+                })}
+              </span>
+            }
+            extra={
+              <Button onClick={handleQuickApiKeySave} loading={quickKeyState.loading}>
+                {t('auth_login.opencode_apikey_save_button', {
+                  defaultValue: 'Save Credential',
+                })}
+              </Button>
+            }
+          >
+            <div className={styles.cardContent}>
+              <div className={styles.cardHint}>
+                {t('auth_login.opencode_apikey_hint', {
+                  defaultValue:
+                    'Paste your OpenCode Go (or Z.ai GLM / Mistral) API key to save it directly as an auth credential file for routing and quota monitoring.',
+                })}
+              </div>
+              <div className={styles.formItem}>
+                <label className={styles.formItemLabel}>
+                  {t('auth_login.opencode_provider_label', { defaultValue: 'Provider Type' })}
+                </label>
+                <div className={styles.authUrlActions}>
+                  {(
+                    [
+                      { id: 'opencode', label: 'OpenCode Go (opencode)' },
+                      { id: 'zai', label: 'Z.ai GLM Coding (zai)' },
+                      { id: 'mistral', label: 'Mistral (mistral)' },
+                    ] as const
+                  ).map((option) => (
+                    <Button
+                      key={option.id}
+                      variant={quickKeyState.provider === option.id ? 'primary' : 'secondary'}
+                      size="sm"
+                      onClick={() =>
+                        setQuickKeyState((prev) => ({
+                          ...prev,
+                          provider: option.id,
+                          error: undefined,
+                          savedFile: undefined,
+                        }))
+                      }
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <Input
+                label={t('auth_login.opencode_apikey_label', { defaultValue: 'API Key' })}
+                type="password"
+                value={quickKeyState.apiKey}
+                onChange={(e) =>
+                  setQuickKeyState((prev) => ({
+                    ...prev,
+                    apiKey: e.target.value,
+                    error: undefined,
+                    savedFile: undefined,
+                  }))
+                }
+                placeholder={t('auth_login.opencode_apikey_placeholder', {
+                  defaultValue: 'Paste your API key...',
+                })}
+              />
+              <Input
+                label={t('auth_login.opencode_label_field', {
+                  defaultValue: 'Account Label (optional)',
+                })}
+                hint={t('auth_login.opencode_label_hint', {
+                  defaultValue: 'Used to name the credential file (e.g. opencode-main.json).',
+                })}
+                value={quickKeyState.label}
+                onChange={(e) =>
+                  setQuickKeyState((prev) => ({
+                    ...prev,
+                    label: e.target.value,
+                    error: undefined,
+                  }))
+                }
+                placeholder={t('auth_login.opencode_label_placeholder', {
+                  defaultValue: 'e.g. main, work',
+                })}
+              />
+              {quickKeyState.error && (
+                <div className="status-badge error">{quickKeyState.error}</div>
+              )}
+              {quickKeyState.savedFile && (
+                <>
+                  <div className="status-badge success">
+                    {t('auth_login.quick_api_key_saved', {
+                      defaultValue: 'Saved credential file: {{file}}',
+                      file: quickKeyState.savedFile,
+                    })}
+                  </div>
+                  <div className={styles.successActions}>
+                    <Button variant="secondary" size="sm" onClick={() => navigate('/accounts')}>
+                      {t('auth_login.view_credentials')}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </Card>
+        </div>
 
         {/* Vertex JSON 登录 */}
         <Card

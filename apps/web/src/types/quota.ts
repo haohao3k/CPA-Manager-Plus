@@ -706,3 +706,44 @@ export interface MetaQuotaState
   errorStatus?: number;
 }
 
+export interface ExternalProviderQuotaWindow {
+  id: string;
+  label: string;
+  usedPercent: number | null;
+  resetAtMs: number | null;
+  resetAccuracy: QuotaResetAccuracy;
+  limitWindowSeconds: number | null;
+  quotaProgressObservedAtMs: number | null;
+}
+
+export interface ExternalProviderQuotaData {
+  windows: ExternalProviderQuotaWindow[];
+  observedAtMs: number;
+  plan?: string | null;
+  quotaInventoryObserved: boolean;
+}
+
+export interface MistralQuotaState
+  extends CredentialScopedQuotaState,
+    ExternalProviderQuotaData {
+  status: 'idle' | 'loading' | 'success' | 'error';
+  error?: string;
+  errorStatus?: number;
+}
+
+export interface ZaiQuotaState
+  extends CredentialScopedQuotaState,
+    ExternalProviderQuotaData {
+  status: 'idle' | 'loading' | 'success' | 'error';
+  error?: string;
+  errorStatus?: number;
+}
+
+export interface OpencodeQuotaState
+  extends CredentialScopedQuotaState,
+    ExternalProviderQuotaData {
+  status: 'idle' | 'loading' | 'success' | 'error';
+  error?: string;
+  errorStatus?: number;
+}
+

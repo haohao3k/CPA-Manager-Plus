@@ -235,6 +235,7 @@ export interface ModelEntry {
   alias: string;
   priority?: number;
   testModel?: string;
+  wireApi?: 'chat' | 'responses' | '';
   image?: boolean;
   forceMapping?: boolean;
   inputModalities?: string[];
@@ -256,6 +257,7 @@ export const modelsToEntries = (models?: ModelAlias[]): ModelEntry[] => {
       alias: model.alias || '',
       priority: model.priority,
       testModel: model.testModel,
+      wireApi: model.wireApi,
       image: model.image,
       forceMapping: model.forceMapping,
       inputModalities: model.inputModalities,
@@ -291,6 +293,9 @@ export const entriesToModels = (entries: ModelEntry[]): ModelAlias[] => {
       }
       if (entry.testModel) {
         model.testModel = entry.testModel;
+      }
+      if (entry.wireApi !== undefined) {
+        model.wireApi = entry.wireApi;
       }
       if (entry.image !== undefined) {
         model.image = entry.image;

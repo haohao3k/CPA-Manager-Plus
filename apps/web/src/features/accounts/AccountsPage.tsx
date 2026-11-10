@@ -55,7 +55,10 @@ import {
   DEVIN_CONFIG,
   KIMI_CONFIG,
   META_CONFIG,
+  MISTRAL_CONFIG,
+  OPENCODE_CONFIG,
   XAI_CONFIG,
+  ZAI_CONFIG,
   buildObservedCodexQuotaState,
   buildQuotaFailureState,
   refreshQuotaWithConfig,
@@ -332,9 +335,13 @@ import type {
   CodexQuotaState,
   DevinQuotaData,
   DevinQuotaState,
+  ExternalProviderQuotaData,
   MetaQuotaData,
   MetaQuotaState,
+  MistralQuotaState,
+  OpencodeQuotaState,
   XaiQuotaState,
+  ZaiQuotaState,
 } from '@/types';
 import {
   fetchCodexResetCredits,
@@ -1388,6 +1395,9 @@ export function AccountsPage() {
   const devinQuota = useQuotaStore((state) => state.devinQuota);
   const kimiQuota = useQuotaStore((state) => state.kimiQuota);
   const metaQuota = useQuotaStore((state) => state.metaQuota);
+  const mistralQuota = useQuotaStore((state) => state.mistralQuota);
+  const zaiQuota = useQuotaStore((state) => state.zaiQuota);
+  const opencodeQuota = useQuotaStore((state) => state.opencodeQuota);
   const xaiQuota = useQuotaStore((state) => state.xaiQuota);
   const baseQuotaStores = useMemo(
     () => ({
@@ -1397,9 +1407,23 @@ export function AccountsPage() {
       devinQuota,
       kimiQuota,
       metaQuota,
+      mistralQuota,
+      zaiQuota,
+      opencodeQuota,
       xaiQuota,
     }),
-    [antigravityQuota, claudeQuota, codexQuota, devinQuota, kimiQuota, metaQuota, xaiQuota]
+    [
+      antigravityQuota,
+      claudeQuota,
+      codexQuota,
+      devinQuota,
+      kimiQuota,
+      metaQuota,
+      mistralQuota,
+      zaiQuota,
+      opencodeQuota,
+      xaiQuota,
+    ]
   );
   const setAntigravityQuota = useQuotaStore((state) => state.setAntigravityQuota);
   const setClaudeQuota = useQuotaStore((state) => state.setClaudeQuota);
@@ -1407,6 +1431,9 @@ export function AccountsPage() {
   const setDevinQuota = useQuotaStore((state) => state.setDevinQuota);
   const setKimiQuota = useQuotaStore((state) => state.setKimiQuota);
   const setMetaQuota = useQuotaStore((state) => state.setMetaQuota);
+  const setMistralQuota = useQuotaStore((state) => state.setMistralQuota);
+  const setZaiQuota = useQuotaStore((state) => state.setZaiQuota);
+  const setOpencodeQuota = useQuotaStore((state) => state.setOpencodeQuota);
   const setXaiQuota = useQuotaStore((state) => state.setXaiQuota);
 
   const [activeView, setActiveView] = useState<AccountsView>(
@@ -3101,6 +3128,15 @@ export function AccountsPage() {
         case META_CONFIG.type:
           prune(META_CONFIG, setMetaQuota);
           break;
+        case MISTRAL_CONFIG.type:
+          prune(MISTRAL_CONFIG, setMistralQuota);
+          break;
+        case ZAI_CONFIG.type:
+          prune(ZAI_CONFIG, setZaiQuota);
+          break;
+        case OPENCODE_CONFIG.type:
+          prune(OPENCODE_CONFIG, setOpencodeQuota);
+          break;
         default:
           break;
       }
@@ -3116,7 +3152,10 @@ export function AccountsPage() {
       setDevinQuota,
       setKimiQuota,
       setMetaQuota,
+      setMistralQuota,
+      setOpencodeQuota,
       setXaiQuota,
+      setZaiQuota,
     ]
   );
   invalidateProviderCredentialEvidenceRef.current = invalidateProviderCredentialEvidence;
@@ -3998,6 +4037,24 @@ export function AccountsPage() {
         }
         case META_CONFIG.type: {
           const state = getCredentialScopedQuotaState(baseQuotaStores.metaQuota, row.raw);
+          if (state?.status === 'success' && state.windows.length > 0) {
+            fetchedAtMs = state.fetchedAtMs ?? state.observedAtMs ?? undefined;
+            if (!state.quotaInventoryObserved) {
+              inventoryMode = 'partial';
+            }
+          }
+          break;
+        }
+        case MISTRAL_CONFIG.type:
+        case ZAI_CONFIG.type:
+        case OPENCODE_CONFIG.type: {
+          const storeMap =
+            row.provider === MISTRAL_CONFIG.type
+              ? baseQuotaStores.mistralQuota
+              : row.provider === ZAI_CONFIG.type
+                ? baseQuotaStores.zaiQuota
+                : baseQuotaStores.opencodeQuota;
+          const state = storeMap ? getCredentialScopedQuotaState(storeMap, row.raw) : undefined;
           if (state?.status === 'success' && state.windows.length > 0) {
             fetchedAtMs = state.fetchedAtMs ?? state.observedAtMs ?? undefined;
             if (!state.quotaInventoryObserved) {
@@ -6627,6 +6684,30 @@ export function AccountsPage() {
               getScopedQuotaState(META_CONFIG, baseQuotaStores.metaQuota, row.raw)
             )
           );
+        case MISTRAL_CONFIG.type:
+          return toAccountQuotaRefreshOutcome(
+            await refreshWithConfig<MistralQuotaState, ExternalProviderQuotaData>(
+              MISTRAL_CONFIG,
+              setMistralQuota,
+              getScopedQuotaState(MISTRAL_CONFIG, baseQuotaStores.mistralQuota ?? {}, row.raw)
+            )
+          );
+        case ZAI_CONFIG.type:
+          return toAccountQuotaRefreshOutcome(
+            await refreshWithConfig<ZaiQuotaState, ExternalProviderQuotaData>(
+              ZAI_CONFIG,
+              setZaiQuota,
+              getScopedQuotaState(ZAI_CONFIG, baseQuotaStores.zaiQuota ?? {}, row.raw)
+            )
+          );
+        case OPENCODE_CONFIG.type:
+          return toAccountQuotaRefreshOutcome(
+            await refreshWithConfig<OpencodeQuotaState, ExternalProviderQuotaData>(
+              OPENCODE_CONFIG,
+              setOpencodeQuota,
+              getScopedQuotaState(OPENCODE_CONFIG, baseQuotaStores.opencodeQuota ?? {}, row.raw)
+            )
+          );
         default:
           return { status: 'error', error: t('common.unknown_error') };
       }
@@ -6639,7 +6720,10 @@ export function AccountsPage() {
       setDevinQuota,
       setKimiQuota,
       setMetaQuota,
+      setMistralQuota,
+      setOpencodeQuota,
       setXaiQuota,
+      setZaiQuota,
       t,
       authFilesRequestScope,
       baseQuotaStores,

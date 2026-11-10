@@ -59,6 +59,9 @@ func Run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 	}
 
 	_, _ = fmt.Fprintln(stdout, "CPA Manager Plus admin key reset.")
+	if opts.Unlock && result.Unlocked {
+		_, _ = fmt.Fprintln(stdout, "Admin login rate-limit and lockout state cleared.")
+	}
 	if result.Generated {
 		_, _ = fmt.Fprintf(stdout, "New admin key: %s\n", result.AdminKey)
 		_, _ = fmt.Fprintln(stdout, "Save this value now. It will not be shown again.")
@@ -70,8 +73,11 @@ func Run(ctx context.Context, args []string, stdout io.Writer, stderr io.Writer)
 
 type options struct {
 	AdminKey     string
+	Password     string
 	AdminKeyFile string
+	PasswordFile string
 	DBPath       string
+	Unlock       bool
 }
 
 func parseArgs(args []string, stderr io.Writer) (options, error) {
@@ -79,10 +85,13 @@ func parseArgs(args []string, stderr io.Writer) (options, error) {
 	fs := flag.NewFlagSet("reset-admin-key", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.StringVar(&opts.AdminKey, "admin-key", "", "new admin key; omitted to generate a random key")
+	fs.StringVar(&opts.Password, "password", "", "alias for --admin-key")
 	fs.StringVar(&opts.AdminKeyFile, "admin-key-file", "", "file containing the new admin key")
+	fs.StringVar(&opts.PasswordFile, "password-file", "", "alias for --admin-key-file")
 	fs.StringVar(&opts.DBPath, "db-path", "", "SQLite database path; defaults to Manager Server config")
+	fs.BoolVar(&opts.Unlock, "unlock", false, "clear any login rate-limit or lockout state")
 	fs.Usage = func() {
-		_, _ = fmt.Fprintln(stderr, "Usage: cpa-manager-plus reset-admin-key [--db-path PATH] [--admin-key VALUE | --admin-key-file PATH]")
+		_, _ = fmt.Fprintln(stderr, "Usage: cpa-manager-plus reset-password [--db-path PATH] [--password VALUE | --admin-key VALUE | --admin-key-file PATH] [--unlock]")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -90,6 +99,20 @@ func parseArgs(args []string, stderr io.Writer) (options, error) {
 	}
 	if fs.NArg() > 0 {
 		return options{}, fmt.Errorf("unexpected argument %q", fs.Arg(0))
+	}
+	if strings.TrimSpace(opts.AdminKey) != "" && strings.TrimSpace(opts.Password) != "" &&
+		strings.TrimSpace(opts.AdminKey) != strings.TrimSpace(opts.Password) {
+		return options{}, errors.New("--admin-key and --password cannot be used together with different values")
+	}
+	if strings.TrimSpace(opts.AdminKey) == "" && strings.TrimSpace(opts.Password) != "" {
+		opts.AdminKey = opts.Password
+	}
+	if strings.TrimSpace(opts.AdminKeyFile) != "" && strings.TrimSpace(opts.PasswordFile) != "" &&
+		strings.TrimSpace(opts.AdminKeyFile) != strings.TrimSpace(opts.PasswordFile) {
+		return options{}, errors.New("--admin-key-file and --password-file cannot be used together with different values")
+	}
+	if strings.TrimSpace(opts.AdminKeyFile) == "" && strings.TrimSpace(opts.PasswordFile) != "" {
+		opts.AdminKeyFile = opts.PasswordFile
 	}
 	if strings.TrimSpace(opts.AdminKey) != "" && strings.TrimSpace(opts.AdminKeyFile) != "" {
 		return options{}, errors.New("--admin-key and --admin-key-file cannot be used together")

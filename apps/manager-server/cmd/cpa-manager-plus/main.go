@@ -45,7 +45,7 @@ func main() {
 	}
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
-		case "reset-admin-key", "reset-admin-password":
+		case "reset-admin-key", "reset-admin-password", "reset-password":
 			if err := adminreset.Run(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
 				log.Printf("reset admin key: %v", err)
 				os.Exit(1)

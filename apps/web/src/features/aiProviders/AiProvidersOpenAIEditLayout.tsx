@@ -79,6 +79,7 @@ const buildEmptyForm = (): OpenAIFormState => ({
   priority: undefined,
   prefix: '',
   baseUrl: '',
+  wireApi: 'chat',
   headers: [],
   apiKeyEntries: [buildApiKeyEntry()],
   modelEntries: [{ name: '', alias: '' }],
@@ -144,6 +145,7 @@ const buildOpenAIBaseline = (form: OpenAIFormState, testModel: string): OpenAIEd
       : null,
   prefix: String(form.prefix ?? '').trim(),
   baseUrl: String(form.baseUrl ?? '').trim(),
+  wireApi: form.wireApi === 'responses' ? 'responses' : 'chat',
   disableCooling: form.disableCooling,
   headers: normalizeHeaderEntries(form.headers),
   apiKeyEntries: normalizeApiKeyEntries(form.apiKeyEntries),
@@ -351,6 +353,7 @@ export function AiProvidersOpenAIEditLayout() {
         priority: initialData.priority,
         prefix: initialData.prefix ?? '',
         baseUrl: initialData.baseUrl,
+        wireApi: initialData.wireApi === 'responses' ? 'responses' : 'chat',
         headers: headersToEntries(initialData.headers),
         testModel: initialData.testModel,
         modelEntries,
@@ -486,6 +489,7 @@ export function AiProvidersOpenAIEditLayout() {
       baseline.priority !== normalizedPriority ||
       baseline.prefix !== form.prefix.trim() ||
       baseline.baseUrl !== form.baseUrl.trim() ||
+      baseline.wireApi !== (form.wireApi === 'responses' ? 'responses' : 'chat') ||
       baseline.disableCooling !== form.disableCooling ||
       baseline.testModel !== normalizedTestModel ||
       isHeadersDirty ||
@@ -535,6 +539,7 @@ export function AiProvidersOpenAIEditLayout() {
         name,
         prefix: form.prefix?.trim() || undefined,
         baseUrl,
+        wireApi: form.wireApi === 'responses' ? 'responses' : 'chat',
         headers: buildHeaderObject(form.headers),
         apiKeyEntries: form.apiKeyEntries.filter(hasOpenAIKeyEntryConfiguration).map((entry) => ({
           apiKey: entry.apiKey.trim(),

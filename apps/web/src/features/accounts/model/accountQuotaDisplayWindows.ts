@@ -46,6 +46,9 @@ export type AccountQuotaWindowSource =
   | 'devin'
   | 'kimi'
   | 'meta'
+  | 'mistral'
+  | 'zai'
+  | 'opencode'
   | 'xai'
   | 'summary';
 
@@ -865,6 +868,11 @@ export const buildAccountQuotaDisplayWindows = (
     if (windows.length) return windows;
   }
 
+  if (row.provider === 'mistral' || row.provider === 'zai' || row.provider === 'opencode') {
+    const windows = buildExternalProviderQuotaDisplayWindows(row, row.provider, options);
+    if (windows.length) return windows;
+  }
+
   return buildSummaryQuotaDisplayWindow(row, options);
 };
 
@@ -941,6 +949,54 @@ const buildMetaQuotaDisplayWindows = (
       limitWindowSeconds: window.id === 'weekly' ? null : (window.limitWindowSeconds ?? null),
       windowMode: window.id === 'weekly' ? 'unknown' : undefined,
       source: 'meta',
+      modelScope: { kind: 'all', complete: true },
+      observedAtMs: quota.observedAtMs ?? quota.fetchedAtMs ?? null,
+      quotaProgressObservedAtMs: window.quotaProgressObservedAtMs ?? null,
+      nowMs: options.nowMs,
+    });
+  });
+};
+
+const buildExternalProviderQuotaDisplayWindows = (
+  row: AccountRow,
+  provider: 'mistral' | 'zai' | 'opencode',
+  options: BuildAccountQuotaDisplayWindowsOptions
+): AccountQuotaDisplayWindow[] => {
+  const storeMap =
+    provider === 'mistral'
+      ? options.stores.mistralQuota
+      : provider === 'zai'
+        ? options.stores.zaiQuota
+        : options.stores.opencodeQuota;
+  const quota = storeMap ? getCredentialScopedQuotaState(storeMap, row.raw) : undefined;
+  if (!quota || !quota.windows?.length) return [];
+  return quota.windows.map((window) => {
+    const remainingPercent =
+      typeof window.usedPercent === 'number' && Number.isFinite(window.usedPercent)
+        ? clampDisplayPercent(100 - window.usedPercent)
+        : null;
+    const usedPercent =
+      typeof window.usedPercent === 'number' && Number.isFinite(window.usedPercent)
+        ? clampDisplayPercent(window.usedPercent)
+        : null;
+    const hasReset = isValidQuotaResetAtMs(window.resetAtMs);
+    const resetLabel =
+      hasReset && window.resetAtMs !== null
+        ? formatQuotaResetTime(window.resetAtMs)
+        : '-';
+    const label = options.translateQuotaWindowLabel(window.label);
+
+    return buildAccountQuotaDisplayWindow({
+      key: `${provider}:${window.id}`,
+      label,
+      remainingPercent,
+      usedPercent,
+      resetLabel,
+      resetAtMs: window.resetAtMs,
+      resetAccuracy: hasReset && window.resetAccuracy ? window.resetAccuracy : 'unknown',
+      limitWindowSeconds: window.limitWindowSeconds ?? 30 * 24 * 3600,
+      windowMode: 'rolling',
+      source: provider,
       modelScope: { kind: 'all', complete: true },
       observedAtMs: quota.observedAtMs ?? quota.fetchedAtMs ?? null,
       quotaProgressObservedAtMs: window.quotaProgressObservedAtMs ?? null,

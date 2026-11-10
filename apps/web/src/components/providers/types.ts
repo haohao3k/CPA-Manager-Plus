@@ -4,6 +4,7 @@ import {
   type ApiKeyEntry,
   type CoolingPolicy,
   type GeminiKeyConfig,
+  type OpenAIWireApi,
   type ProviderKeyConfig,
 } from '@/types';
 import type { CredentialWeightInputValue } from '@/utils/credentialWeight';
@@ -14,6 +15,7 @@ export interface ModelEntry {
   alias: string;
   priority?: number;
   testModel?: string;
+  wireApi?: OpenAIWireApi | '';
   image?: boolean;
   forceMapping?: boolean;
   inputModalities?: string[];
@@ -28,6 +30,7 @@ export interface OpenAIFormState {
   priority?: number;
   prefix: string;
   baseUrl: string;
+  wireApi?: OpenAIWireApi;
   headers: HeaderEntry[];
   testModel?: string;
   modelEntries: ModelEntry[];

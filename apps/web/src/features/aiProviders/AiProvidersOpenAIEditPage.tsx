@@ -578,6 +578,30 @@ export function AiProvidersOpenAIEditPage() {
               onChange={(e) => setForm((prev) => ({ ...prev, baseUrl: e.target.value }))}
               disabled={saving || disableControls || isTestingKeys}
             />
+            <div className="form-group">
+              <label>{t('ai_providers.wire_api_label', { defaultValue: 'Wire API' })}</label>
+              <Select
+                value={form.wireApi === 'responses' ? 'responses' : 'chat'}
+                options={[
+                  { value: 'chat', label: 'chat (/v1/chat/completions - Default)' },
+                  { value: 'responses', label: 'responses (/v1/responses - OpenAI Responses API)' },
+                ]}
+                onChange={(value) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    wireApi: value === 'responses' ? 'responses' : 'chat',
+                  }))
+                }
+                disabled={saving || disableControls || isTestingKeys}
+                ariaLabel={t('ai_providers.wire_api_label', { defaultValue: 'Wire API' })}
+              />
+              <div className="hint">
+                {t('ai_providers.wire_api_hint', {
+                  defaultValue:
+                    'Upstream protocol used for this provider unless overridden per model.',
+                })}
+              </div>
+            </div>
 
             <HeaderInputList
               entries={form.headers}
@@ -653,8 +677,10 @@ export function AiProvidersOpenAIEditPage() {
                 removeButtonTitle={t('common.delete')}
                 removeButtonAriaLabel={t('common.delete')}
                 showForceMapping
+                showWireApi
                 showModalities
                 showThinkingLevels
+                wireApiLabel={t('ai_providers.wire_api_label', { defaultValue: 'Wire API' })}
                 forceMappingLabel={t('ai_providers.force_mapping_label')}
                 inputModalitiesPlaceholder={t('ai_providers.input_modalities_placeholder')}
                 outputModalitiesPlaceholder={t('ai_providers.output_modalities_placeholder')}

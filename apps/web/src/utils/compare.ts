@@ -73,6 +73,7 @@ export function areModelEntriesEqual(
   a: readonly {
     name: string;
     alias: string;
+    wireApi?: string;
     forceMapping?: boolean;
     inputModalities?: string[];
     outputModalities?: string[];
@@ -81,6 +82,7 @@ export function areModelEntriesEqual(
   b: readonly {
     name: string;
     alias: string;
+    wireApi?: string;
     forceMapping?: boolean;
     inputModalities?: string[];
     outputModalities?: string[];
@@ -96,6 +98,7 @@ export function areModelEntriesEqual(
     if (
       left.name !== right.name ||
       left.alias !== right.alias ||
+      (left.wireApi || '') !== (right.wireApi || '') ||
       Boolean(left.forceMapping) !== Boolean(right.forceMapping) ||
       !areStringArraysEqual(left.inputModalities ?? [], right.inputModalities ?? []) ||
       !areStringArraysEqual(left.outputModalities ?? [], right.outputModalities ?? []) ||

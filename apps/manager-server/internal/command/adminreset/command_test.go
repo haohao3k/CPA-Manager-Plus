@@ -53,6 +53,25 @@ func TestRunUsesProvidedAdminKeyWithoutEchoingIt(t *testing.T) {
 	requireAdminKeyVerifies(t, dbPath, adminKey)
 }
 
+func TestRunSupportsPasswordFlagAliasAndUnlock(t *testing.T) {
+	dbPath := newCommandTestDB(t)
+	const password = "cpamp_from_password_flag"
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	if err := Run(context.Background(), []string{"--db-path", dbPath, "--password", password, "--unlock"}, &stdout, &stderr); err != nil {
+		t.Fatalf("run reset command with --password --unlock: %v stderr=%s", err, stderr.String())
+	}
+
+	if strings.Contains(stdout.String(), password) {
+		t.Fatalf("stdout leaked provided password: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "lockout state cleared") {
+		t.Fatalf("stdout missing unlock confirmation: %s", stdout.String())
+	}
+	requireAdminKeyVerifies(t, dbPath, password)
+}
+
 func TestRunRejectsMissingDB(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "missing.sqlite")
 	var stdout bytes.Buffer

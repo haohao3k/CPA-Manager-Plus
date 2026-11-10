@@ -9,11 +9,15 @@ import type {
   CredentialScopedQuotaState,
   DevinQuotaData,
   DevinQuotaState,
+  ExternalProviderQuotaData,
   KimiQuotaState,
   MetaQuotaData,
   MetaQuotaState,
+  MistralQuotaState,
+  OpencodeQuotaState,
   XaiBillingSummary,
   XaiQuotaState,
+  ZaiQuotaState,
 } from '@/types';
 import type { UsageHeaderSnapshot } from '@/services/api/usageService';
 import type { AuthFilesApiRequestScope } from '@/services/api/authFiles';
@@ -35,7 +39,10 @@ import {
   fetchDevinQuota,
   fetchKimiQuota,
   fetchMetaQuota,
+  fetchMistralQuota,
+  fetchOpencodeQuota,
   fetchXaiQuota,
+  fetchZaiQuota,
   filterFreshCodexQuotaWindows,
   findCodexProviderWindowMatch,
   isCodexMainQuotaWindow,
@@ -62,7 +69,17 @@ import {
   scopeQuotaStateToCredential,
 } from '@/utils/quota/credentialScope';
 
-type QuotaType = 'antigravity' | 'claude' | 'codex' | 'kimi' | 'xai' | 'devin' | 'meta';
+type QuotaType =
+  | 'antigravity'
+  | 'claude'
+  | 'codex'
+  | 'kimi'
+  | 'xai'
+  | 'devin'
+  | 'meta'
+  | 'mistral'
+  | 'zai'
+  | 'opencode';
 
 export type { QuotaFetchContext };
 
@@ -935,4 +952,60 @@ export const META_CONFIG: QuotaConfig<MetaQuotaState, MetaQuotaData> = {
   }),
   scopeState: scopeCredentialQuotaState,
 };
+
+const createExternalProviderQuotaConfig = <
+  TState extends MistralQuotaState | ZaiQuotaState | OpencodeQuotaState,
+>(
+  type: 'mistral' | 'zai' | 'opencode',
+  fetchFn: typeof fetchMistralQuota
+): QuotaConfig<TState, ExternalProviderQuotaData> => ({
+  type,
+  i18nPrefix: `${type}_quota`,
+  fetchQuota: fetchFn,
+  getStoreKey: getQuotaCredentialStoreKey,
+  buildLoadingState: (file) =>
+    ({
+      status: 'loading',
+      windows: [],
+      observedAtMs: Date.now(),
+      plan: null,
+      quotaInventoryObserved: false,
+      ...buildQuotaCredentialIdentity(file),
+    }) as unknown as TState,
+  buildSuccessState: (data, file) =>
+    ({
+      status: 'success',
+      windows: data.windows,
+      observedAtMs: data.observedAtMs,
+      plan: data.plan ?? null,
+      quotaInventoryObserved: data.quotaInventoryObserved,
+      ...buildQuotaCredentialIdentity(file),
+      fetchedAtMs: data.observedAtMs ?? Date.now(),
+    }) as unknown as TState,
+  buildErrorState: (message, status, file) =>
+    ({
+      status: 'error',
+      windows: [],
+      observedAtMs: Date.now(),
+      plan: null,
+      quotaInventoryObserved: false,
+      error: message,
+      errorStatus: status,
+      ...buildQuotaCredentialIdentity(file),
+      failedAtMs: Date.now(),
+    }) as unknown as TState,
+  scopeState: scopeCredentialQuotaState,
+});
+
+export const MISTRAL_CONFIG = createExternalProviderQuotaConfig<MistralQuotaState>(
+  'mistral',
+  fetchMistralQuota
+);
+
+export const ZAI_CONFIG = createExternalProviderQuotaConfig<ZaiQuotaState>('zai', fetchZaiQuota);
+
+export const OPENCODE_CONFIG = createExternalProviderQuotaConfig<OpencodeQuotaState>(
+  'opencode',
+  fetchOpencodeQuota
+);
 

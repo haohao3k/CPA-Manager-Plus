@@ -943,3 +943,41 @@ func TestRunReEncryptsLegacyPlaintextPrefixedWithEnvelopePrefix(t *testing.T) {
 		t.Fatalf("second bootstrap manager config = %#v ok=%v err=%v", managerCfg2, ok, err)
 	}
 }
+
+func TestRunSeedsConnectionFromEnvOnFirstBoot(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "usage.sqlite")
+	protector, err := security.NewProtector([]byte("0123456789abcdef0123456789abcdef"))
+	if err != nil {
+		t.Fatalf("create protector: %v", err)
+	}
+	st, err := store.Open(dbPath, protector)
+	if err != nil {
+		t.Fatalf("open protected store: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	result, err := Run(context.Background(), config.Config{
+		DBPath:         dbPath,
+		CPAUpstreamURL: "http://127.0.0.1:8317/",
+		ManagementKey:  "env-management-key",
+		Queue:          "usage",
+		PopSide:        "right",
+		BatchSize:      100,
+		QueryLimit:     50000,
+		CollectorMode:  "auto",
+	}, st, true)
+	if err != nil {
+		t.Fatalf("bootstrap with env connection: %v", err)
+	}
+	if !result.State.ProjectInitialized || result.State.Status != "ready" {
+		t.Fatalf("bootstrap state = %#v, want ProjectInitialized=true Status=ready", result.State)
+	}
+	managerCfg, ok, err := st.LoadManagerConfig(context.Background())
+	if err != nil || !ok {
+		t.Fatalf("load seeded manager config ok=%v err=%v", ok, err)
+	}
+	if managerCfg.CPAConnection.CPABaseURL != "http://127.0.0.1:8317" ||
+		managerCfg.CPAConnection.ManagementKey != "env-management-key" {
+		t.Fatalf("seeded manager config = %#v", managerCfg.CPAConnection)
+	}
+}

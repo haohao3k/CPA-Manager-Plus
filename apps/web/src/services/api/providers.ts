@@ -118,6 +118,9 @@ const OPENAI_PROVIDER_FIELDS = [
   'base-url',
   'baseUrl',
   'base_url',
+  'wire-api',
+  'wireApi',
+  'wire_api',
   'api-key-entries',
   'apiKeyEntries',
   'api_key_entries',
@@ -146,6 +149,9 @@ const MODEL_ALIAS_FIELDS = [
   'test-model',
   'testModel',
   'test_model',
+  'wire-api',
+  'wireApi',
+  'wire_api',
   'image',
   'force-mapping',
   'forceMapping',
@@ -336,6 +342,12 @@ const mergeModelPayloads = (raw: unknown, models: unknown) =>
             hasModelThinkingLevelsClearMarker(payload) || payloadThinking === null;
           const editThinkingLevels = hasModelThinkingLevelsEditMarker(payload);
           preserveOmittedRawField(rawModel, payload, next, ['image']);
+          preserveOmittedRawField(rawModel, payload, next, ['wire-api', 'wireApi', 'wire_api']);
+          if (next['wire-api'] === '') {
+            delete next['wire-api'];
+            delete next.wireApi;
+            delete next.wire_api;
+          }
           preserveOmittedRawField(rawModel, payload, next, [
             'force-mapping',
             'forceMapping',
@@ -453,6 +465,7 @@ const mergeMetaProviderKeyPayload = (raw: unknown, payload: Record<string, unkno
 const mergeOpenAIProviderPayload = (raw: unknown, payload: Record<string, unknown>) => {
   const next = mergeKnownFields(raw, payload, OPENAI_PROVIDER_FIELDS);
   preserveOmittedRawField(raw, payload, next, DISABLE_COOLING_FIELDS);
+  preserveOmittedRawField(raw, payload, next, ['wire-api', 'wireApi', 'wire_api']);
   const rawApiKeyEntries = isRecord(raw)
     ? (raw['api-key-entries'] ?? raw.apiKeyEntries)
     : undefined;
@@ -691,7 +704,11 @@ const getOpenAIProviderKey = (provider: Pick<OpenAIProviderConfig, 'name' | 'bas
 // so we rehydrate them from /config when they are missing.
 // This is a temporary workaround until upstream fixes the issue.
 const hydrateOpenAIProvidersDisableCooling = async (providers: OpenAIProviderConfig[]) => {
-  if (!providers.some((provider) => provider.disableCooling === undefined)) {
+  if (
+    !providers.some(
+      (provider) => provider.disableCooling === undefined || provider.wireApi === undefined
+    )
+  ) {
     return providers;
   }
 
@@ -715,14 +732,19 @@ const hydrateOpenAIProvidersDisableCooling = async (providers: OpenAIProviderCon
   );
 
   return providers.map((provider) => {
-    if (provider.disableCooling !== undefined) {
-      return provider;
-    }
     const fallback = fallbackByKey.get(getOpenAIProviderKey(provider));
-    if (!fallback || fallback.disableCooling === undefined) {
+    if (!fallback) {
       return provider;
     }
-    return { ...provider, disableCooling: fallback.disableCooling };
+    return {
+      ...provider,
+      ...(provider.disableCooling === undefined && fallback.disableCooling !== undefined
+        ? { disableCooling: fallback.disableCooling }
+        : {}),
+      ...(provider.wireApi === undefined && fallback.wireApi !== undefined
+        ? { wireApi: fallback.wireApi }
+        : {}),
+    };
   });
 };
 
@@ -747,6 +769,9 @@ const serializeModelAliases = (models?: ModelAlias[]) =>
           }
           if (model.testModel) {
             payload['test-model'] = model.testModel;
+          }
+          if (model.wireApi !== undefined) {
+            payload['wire-api'] = model.wireApi;
           }
           if (model.image !== undefined) {
             payload.image = model.image;
@@ -956,6 +981,7 @@ const serializeOpenAIProvider = (provider: OpenAIProviderConfig) => {
   const authIndex = serializeAuthIndex(provider.authIndex);
   if (authIndex) payload['auth-index'] = authIndex;
   if (provider.prefix?.trim()) payload.prefix = provider.prefix.trim();
+  if (provider.wireApi !== undefined) payload['wire-api'] = provider.wireApi;
   if (provider.disabled !== undefined) payload.disabled = provider.disabled;
   if (provider.disableCooling !== undefined) payload['disable-cooling'] = provider.disableCooling;
   const headers = serializeHeaders(provider.headers);

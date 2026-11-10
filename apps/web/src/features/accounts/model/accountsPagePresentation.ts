@@ -105,6 +105,10 @@ export const getProviderLabel = (provider: string, t: TFunction) => {
   if (provider === 'all') return t('accounts.filter_all');
   if (provider === 'iflow') return 'iFlow';
   if (provider === 'xai') return 'xAI';
+  if (provider === 'zai') return 'Z.ai';
+  if (provider === 'opencode') return 'OpenCode Go';
+  if (provider === 'mistral') return 'Mistral';
+  if (provider === 'cursor') return 'Cursor';
   return provider.charAt(0).toUpperCase() + provider.slice(1);
 };
 

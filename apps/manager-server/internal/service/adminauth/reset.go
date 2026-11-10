@@ -12,6 +12,7 @@ import (
 type ResetAdminKeyResult struct {
 	AdminKey  string
 	Generated bool
+	Unlocked  bool
 }
 
 func ResetAdminKey(ctx context.Context, st *store.Store, adminKey string) (ResetAdminKeyResult, error) {
@@ -38,8 +39,14 @@ func ResetAdminKey(ctx context.Context, st *store.Store, adminKey string) (Reset
 		credential.CreatedAtMS = existing.CreatedAtMS
 	}
 	credential.RotatedAtMS = time.Now().UnixMilli()
+	credential.FailedAttempts = 0
+	credential.LockedUntilMS = 0
 	if err := st.SaveAdminCredential(ctx, credential); err != nil {
 		return ResetAdminKeyResult{}, err
 	}
-	return ResetAdminKeyResult{AdminKey: adminKey, Generated: generated}, nil
+	if state, ok, err := st.LoadBootstrapState(ctx); err == nil && ok && !state.AdminReady {
+		state.AdminReady = true
+		_ = st.SaveBootstrapState(ctx, state)
+	}
+	return ResetAdminKeyResult{AdminKey: adminKey, Generated: generated, Unlocked: true}, nil
 }

@@ -94,6 +94,7 @@ export const removeThinkingFlagAliases = (
 
 type ModelThinkingCarrier = {
   thinking?: Record<string, unknown>;
+  wireApi?: OpenAIWireApi | '';
 };
 
 /** Materialize one-shot Thinking commands before a model becomes committed state. */
@@ -106,8 +107,13 @@ export const toCommittedModelThinkingSnapshot = <T extends object>(value: T): T 
       ...THINKING_DYNAMIC_ALLOWED_FIELDS,
     ]);
   }
+  if (next.wireApi === '') {
+    delete next.wireApi;
+  }
   return next;
 };
+
+export type OpenAIWireApi = 'chat' | 'responses';
 
 export interface ModelAlias {
   name: string;
@@ -116,6 +122,7 @@ export interface ModelAlias {
   testModel?: string;
   image?: boolean;
   forceMapping?: boolean;
+  wireApi?: OpenAIWireApi | '';
   inputModalities?: string[];
   outputModalities?: string[];
   thinking?: Record<string, unknown>;
@@ -188,6 +195,7 @@ export interface OpenAIProviderConfig {
   name: string;
   prefix?: string;
   baseUrl: string;
+  wireApi?: OpenAIWireApi;
   apiKeyEntries: ApiKeyEntry[];
   disabled?: boolean;
   headers?: Record<string, string>;

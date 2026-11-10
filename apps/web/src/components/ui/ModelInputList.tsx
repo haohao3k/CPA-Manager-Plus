@@ -46,6 +46,8 @@ interface ModelInputListProps {
   showForceMapping?: boolean;
   showModalities?: boolean;
   showThinkingLevels?: boolean;
+  showWireApi?: boolean;
+  wireApiLabel?: string;
   forceMappingLabel?: string;
   inputModalitiesPlaceholder?: string;
   outputModalitiesPlaceholder?: string;
@@ -87,6 +89,8 @@ export function ModelInputList({
   showForceMapping = false,
   showModalities = false,
   showThinkingLevels = false,
+  showWireApi = false,
+  wireApiLabel = 'Wire API',
   forceMappingLabel = 'Rewrite response model',
   inputModalitiesPlaceholder = 'Input modalities: text, image',
   outputModalitiesPlaceholder = 'Output modalities: text, image',
@@ -259,7 +263,7 @@ export function ModelInputList({
                 <IconX size={14} />
               </Button>
             </div>
-            {(showForceMapping || showModalities) && (
+            {(showForceMapping || showModalities || showWireApi) && (
               <div className={styles.advancedRow}>
                 {showForceMapping && (
                   <ToggleSwitch
@@ -269,6 +273,22 @@ export function ModelInputList({
                     onChange={(forceMapping) => updateAdvancedEntry(index, { forceMapping })}
                     disabled={disabled}
                   />
+                )}
+                {showWireApi && (
+                  <select
+                    className={inputClassNames}
+                    value={entry.wireApi ?? ''}
+                    aria-label={`${modelContext} ${wireApiLabel}`}
+                    onChange={(event) => {
+                      const val = event.target.value as 'chat' | 'responses' | '';
+                      updateAdvancedEntry(index, { wireApi: val });
+                    }}
+                    disabled={disabled}
+                  >
+                    <option value="">{wireApiLabel}: Inherit (Provider Default)</option>
+                    <option value="chat">{wireApiLabel}: chat (/v1/chat/completions)</option>
+                    <option value="responses">{wireApiLabel}: responses (/v1/responses)</option>
+                  </select>
                 )}
                 {showModalities && (
                   <>

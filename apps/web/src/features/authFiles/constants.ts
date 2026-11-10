@@ -13,6 +13,10 @@ import iconKimiLight from '@/assets/icons/kimi-light.svg';
 import iconMeta from '@/assets/icons/meta.svg';
 import iconQwen from '@/assets/icons/qwen.svg';
 import iconVertex from '@/assets/icons/vertex.svg';
+import iconCursor from '@/assets/icons/cursor.svg';
+import iconMistral from '@/assets/icons/mistral.svg';
+import iconGlm from '@/assets/icons/glm.svg';
+import iconOpenCode from '@/assets/icons/opencode.svg';
 import type { AuthFileItem } from '@/types';
 import { parseTimestamp } from '@/utils/timestamp';
 
@@ -27,7 +31,17 @@ export type AuthFileModelItem = {
 };
 export type AuthFileIconAsset = string | { light: string; dark: string };
 
-export type QuotaProviderType = 'antigravity' | 'claude' | 'codex' | 'kimi' | 'xai' | 'devin' | 'meta';
+export type QuotaProviderType =
+  | 'antigravity'
+  | 'claude'
+  | 'codex'
+  | 'kimi'
+  | 'xai'
+  | 'devin'
+  | 'meta'
+  | 'mistral'
+  | 'zai'
+  | 'opencode';
 export type OAuthConfigLoadState = 'loading' | 'ready' | 'unsupported' | 'error';
 
 export const QUOTA_PROVIDER_TYPES = new Set<QuotaProviderType>([
@@ -38,6 +52,9 @@ export const QUOTA_PROVIDER_TYPES = new Set<QuotaProviderType>([
   'xai',
   'devin',
   'meta',
+  'mistral',
+  'zai',
+  'opencode',
 ]);
 
 export const AUTH_FILE_REFRESH_WARNING_MS = 24 * 60 * 60 * 1000;
@@ -120,6 +137,22 @@ export const TYPE_COLORS: Record<string, TypeColorSet> = {
     light: { bg: '#e5f2ff', text: '#0064e0' },
     dark: { bg: '#0b3564', text: '#70b5ff' },
   },
+  cursor: {
+    light: { bg: '#f4f4f5', text: '#18181b', border: '1px solid #d4d4d8' },
+    dark: { bg: '#27272a', text: '#f4f4f5', border: '1px solid #52525b' },
+  },
+  mistral: {
+    light: { bg: '#fff3e6', text: '#c2410c' },
+    dark: { bg: '#5c2408', text: '#fdba74' },
+  },
+  zai: {
+    light: { bg: '#eef2ff', text: '#3730a3' },
+    dark: { bg: '#1e1b4b', text: '#a5b4fc' },
+  },
+  opencode: {
+    light: { bg: '#ccfbf1', text: '#0f766e' },
+    dark: { bg: '#134e4a', text: '#5eead4' },
+  },
   empty: {
     light: { bg: '#f5f5f5', text: '#616161' },
     dark: { bg: '#424242', text: '#bdbdbd' },
@@ -141,6 +174,10 @@ export const AUTH_FILE_ICONS: Record<string, AuthFileIconAsset> = {
   iflow: iconIflow,
   kimi: { light: iconKimiLight, dark: iconKimiDark },
   meta: iconMeta,
+  cursor: iconCursor,
+  mistral: iconMistral,
+  zai: iconGlm,
+  opencode: iconOpenCode,
   qwen: iconQwen,
   vertex: iconVertex,
 };
@@ -159,6 +196,8 @@ export const normalizeProviderKey = (value: string) => {
   const key = value.trim().toLowerCase().replace(/_/g, '-');
   if (key === 'x-ai' || key === 'grok') return 'xai';
   if (key === 'muse') return 'meta';
+  if (key === 'opencode-go') return 'opencode';
+  if (key === 'z-ai' || key === 'z.ai' || key === 'glm') return 'zai';
   return key;
 };
 
@@ -203,6 +242,10 @@ export const getTypeLabel = (t: TFunction, type: string): string => {
   if (translated !== key) return translated;
   if (providerKey === 'iflow') return 'iFlow';
   if (providerKey === 'meta') return 'Muse (Meta)';
+  if (providerKey === 'cursor') return 'Cursor';
+  if (providerKey === 'mistral') return 'Mistral';
+  if (providerKey === 'zai') return 'Z.ai GLM';
+  if (providerKey === 'opencode') return 'OpenCode Go';
   return type.charAt(0).toUpperCase() + type.slice(1);
 };
 

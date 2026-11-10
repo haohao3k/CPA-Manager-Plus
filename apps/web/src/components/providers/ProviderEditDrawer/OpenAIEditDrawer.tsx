@@ -75,6 +75,7 @@ const buildEmptyForm = (): OpenAIFormState => ({
   priority: undefined,
   prefix: '',
   baseUrl: '',
+  wireApi: 'chat',
   headers: [],
   apiKeyEntries: [buildApiKeyEntry()],
   modelEntries: [{ name: '', alias: '' }],
@@ -131,6 +132,7 @@ const buildOpenAIBaseline = (form: OpenAIFormState) => ({
       : null,
   prefix: String(form.prefix ?? '').trim(),
   baseUrl: String(form.baseUrl ?? '').trim(),
+  wireApi: form.wireApi === 'responses' ? 'responses' : 'chat',
   disableCooling: form.disableCooling,
   headers: normalizeHeaderEntries(form.headers),
   apiKeyEntries: normalizeApiKeyEntries(form.apiKeyEntries),
@@ -266,6 +268,7 @@ export function OpenAIEditDrawer({
         priority: initialData.priority,
         prefix: initialData.prefix ?? '',
         baseUrl: initialData.baseUrl,
+        wireApi: initialData.wireApi === 'responses' ? 'responses' : 'chat',
         headers: headersToEntries(initialData.headers),
         modelEntries,
         apiKeyEntries: initialData.apiKeyEntries?.length
@@ -324,6 +327,7 @@ export function OpenAIEditDrawer({
       baseline.priority !== normalizedPriority ||
       baseline.prefix !== form.prefix.trim() ||
       baseline.baseUrl !== form.baseUrl.trim() ||
+      baseline.wireApi !== (form.wireApi === 'responses' ? 'responses' : 'chat') ||
       baseline.disableCooling !== form.disableCooling ||
       !areKeyValueEntriesEqual(baseline.headers, normalizeHeaderEntries(form.headers)) ||
       !areNormalizedApiKeyEntriesEqual(
@@ -691,6 +695,7 @@ export function OpenAIEditDrawer({
         name,
         prefix: form.prefix?.trim() || undefined,
         baseUrl,
+        wireApi: form.wireApi === 'responses' ? 'responses' : 'chat',
         headers: buildHeaderObject(form.headers),
         apiKeyEntries: form.apiKeyEntries.filter(hasOpenAIKeyEntryConfiguration).map((entry) => ({
           apiKey: entry.apiKey.trim(),
@@ -959,6 +964,30 @@ export function OpenAIEditDrawer({
               disabled={saving || disabled || isTestingKeys}
               required
             />
+            <div className="form-group">
+              <label>{t('ai_providers.wire_api_label', { defaultValue: 'Wire API' })}</label>
+              <Select
+                value={form.wireApi === 'responses' ? 'responses' : 'chat'}
+                options={[
+                  { value: 'chat', label: 'chat (/v1/chat/completions - Default)' },
+                  { value: 'responses', label: 'responses (/v1/responses - OpenAI Responses API)' },
+                ]}
+                onChange={(value) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    wireApi: value === 'responses' ? 'responses' : 'chat',
+                  }))
+                }
+                disabled={saving || disabled || isTestingKeys}
+                ariaLabel={t('ai_providers.wire_api_label', { defaultValue: 'Wire API' })}
+              />
+              <div className="hint">
+                {t('ai_providers.wire_api_hint', {
+                  defaultValue:
+                    'Upstream protocol used for this provider unless overridden per model.',
+                })}
+              </div>
+            </div>
             <Input
               label={t('ai_providers.priority_label')}
               hint={t('ai_providers.priority_hint')}
@@ -1061,8 +1090,10 @@ export function OpenAIEditDrawer({
                 removeButtonTitle={t('common.delete')}
                 removeButtonAriaLabel={t('common.delete')}
                 showForceMapping
+                showWireApi
                 showModalities
                 showThinkingLevels
+                wireApiLabel={t('ai_providers.wire_api_label', { defaultValue: 'Wire API' })}
                 forceMappingLabel={t('ai_providers.force_mapping_label')}
                 inputModalitiesPlaceholder={t('ai_providers.input_modalities_placeholder')}
                 outputModalitiesPlaceholder={t('ai_providers.output_modalities_placeholder')}

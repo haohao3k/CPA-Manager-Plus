@@ -62,6 +62,13 @@ const normalizeNumber = (value: unknown): number | undefined => {
   return undefined;
 };
 
+const normalizeWireApi = (value: unknown): 'chat' | 'responses' | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim().toLowerCase();
+  if (trimmed === 'chat' || trimmed === 'responses') return trimmed;
+  return undefined;
+};
+
 const normalizeModelAliases = (models: unknown): ModelAlias[] => {
   if (!Array.isArray(models)) return [];
   return models
@@ -100,6 +107,10 @@ const normalizeModelAliases = (models: unknown): ModelAlias[] => {
       );
       if (forceMapping !== undefined) {
         entry.forceMapping = forceMapping;
+      }
+      const wireApi = normalizeWireApi(item['wire-api'] ?? item.wireApi ?? item.wire_api);
+      if (wireApi !== undefined) {
+        entry.wireApi = wireApi;
       }
       const inputModalities = normalizeExcludedModels(
         item['input-modalities'] ?? item.inputModalities ?? item.input_modalities
@@ -367,6 +378,8 @@ const normalizeOpenAIProvider = (provider: unknown): OpenAIProviderConfig | null
   if (disableCooling !== undefined) result.disableCooling = disableCooling;
   const prefix = normalizePrefix(provider.prefix ?? provider['prefix']);
   if (prefix) result.prefix = prefix;
+  const wireApi = normalizeWireApi(provider['wire-api'] ?? provider.wireApi ?? provider.wire_api);
+  if (wireApi !== undefined) result.wireApi = wireApi;
   if (headers) result.headers = headers;
   if (models.length) result.models = models;
   if (priority !== undefined) result.priority = Number(priority);

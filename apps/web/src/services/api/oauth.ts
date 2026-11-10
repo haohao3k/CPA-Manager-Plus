@@ -11,7 +11,10 @@ export type BuiltInOAuthProvider =
   | 'kimi'
   | 'xai'
   | 'devin'
-  | 'meta';
+  | 'meta'
+  | 'cursor'
+  | 'mistral'
+  | 'zai';
 export type OAuthProvider = BuiltInOAuthProvider | (string & {});
 
 export interface OAuthStartResponse {

@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/seakee/cpa-manager-plus/apps/manager-server/internal/config"
@@ -64,6 +65,10 @@ func Run(ctx context.Context, cfg config.Config, st *store.Store, dataKeyCreated
 		connectionStorageMigrationVersion = currentConnectionStorageMigrationVersion
 	} else {
 		result.MigratedLegacy = previousState.MigratedLegacy
+	}
+
+	if err := seedConnectionFromConfigIfEmpty(ctx, cfg, st); err != nil {
+		return Result{}, err
 	}
 
 	projectInitialized, err := projectInitialized(ctx, cfg, st)
@@ -221,6 +226,33 @@ func managerConfigFromSetup(cfg config.Config, setup store.Setup) store.ManagerC
 			TLSSkipVerify:  cfg.TLSSkipVerify,
 		},
 	}
+}
+
+func seedConnectionFromConfigIfEmpty(ctx context.Context, cfg config.Config, st *store.Store) error {
+	baseURL := cpa.NormalizeBaseURL(cfg.CPAUpstreamURL)
+	managementKey := strings.TrimSpace(cfg.ManagementKey)
+	if baseURL == "" || managementKey == "" {
+		return nil
+	}
+	_, managerOK, err := st.LoadManagerConfig(ctx)
+	if err != nil {
+		return err
+	}
+	_, setupOK, err := st.LoadSetup(ctx)
+	if err != nil {
+		return err
+	}
+	if managerOK || setupOK {
+		return nil
+	}
+	seedSetup := store.Setup{
+		CPAUpstreamURL: baseURL,
+		ManagementKey:  managementKey,
+		Queue:          managerconfig.ValueOr(cfg.Queue, "usage"),
+		PopSide:        managerconfig.NormalizePopSide(cfg.PopSide, "right"),
+	}
+	seedManager := managerConfigFromSetup(cfg, seedSetup)
+	return st.SaveManagerConfigAndSetup(ctx, seedManager, seedSetup)
 }
 
 func projectInitialized(ctx context.Context, cfg config.Config, st *store.Store) (bool, error) {
