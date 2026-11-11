@@ -49,6 +49,7 @@ export type AccountQuotaWindowSource =
   | 'mistral'
   | 'zai'
   | 'opencode'
+  | 'cursor'
   | 'xai'
   | 'summary';
 
@@ -868,7 +869,12 @@ export const buildAccountQuotaDisplayWindows = (
     if (windows.length) return windows;
   }
 
-  if (row.provider === 'mistral' || row.provider === 'zai' || row.provider === 'opencode') {
+  if (
+    row.provider === 'mistral' ||
+    row.provider === 'zai' ||
+    row.provider === 'opencode' ||
+    row.provider === 'cursor'
+  ) {
     const windows = buildExternalProviderQuotaDisplayWindows(row, row.provider, options);
     if (windows.length) return windows;
   }
@@ -959,7 +965,7 @@ const buildMetaQuotaDisplayWindows = (
 
 const buildExternalProviderQuotaDisplayWindows = (
   row: AccountRow,
-  provider: 'mistral' | 'zai' | 'opencode',
+  provider: 'mistral' | 'zai' | 'opencode' | 'cursor',
   options: BuildAccountQuotaDisplayWindowsOptions
 ): AccountQuotaDisplayWindow[] => {
   const storeMap =
@@ -967,7 +973,9 @@ const buildExternalProviderQuotaDisplayWindows = (
       ? options.stores.mistralQuota
       : provider === 'zai'
         ? options.stores.zaiQuota
-        : options.stores.opencodeQuota;
+        : provider === 'opencode'
+          ? options.stores.opencodeQuota
+          : options.stores.cursorQuota;
   const quota = storeMap ? getCredentialScopedQuotaState(storeMap, row.raw) : undefined;
   if (!quota || !quota.windows?.length) return [];
   return quota.windows.map((window) => {
@@ -995,6 +1003,7 @@ const buildExternalProviderQuotaDisplayWindows = (
       resetAtMs: window.resetAtMs,
       resetAccuracy: hasReset && window.resetAccuracy ? window.resetAccuracy : 'unknown',
       limitWindowSeconds: window.limitWindowSeconds ?? 30 * 24 * 3600,
+      amountLabel: window.amountLabel,
       windowMode: 'rolling',
       source: provider,
       modelScope: { kind: 'all', complete: true },

@@ -672,6 +672,13 @@ export const QuotaWindowCard = ({
             <span className={styles.subtitle} title={q.description}>
               {q.description}
             </span>
+          ) : q.amountLabel && resolvedMode !== 'other' ? (
+            <span className={styles.subtitle} title={q.amountLabel}>
+              {q.amountLabel}
+              {q.windowMode === 'rolling' && boundaryDisplay !== '-'
+                ? ` · ${boundaryDisplay}`
+                : ''}
+            </span>
           ) : (resolvedMode === 'other' || q.windowMode === 'rolling') &&
             boundaryDisplay !== '-' ? (
             <span className={styles.subtitle}>{boundaryDisplay}</span>

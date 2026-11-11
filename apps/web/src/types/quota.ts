@@ -714,6 +714,10 @@ export interface ExternalProviderQuotaWindow {
   resetAccuracy: QuotaResetAccuracy;
   limitWindowSeconds: number | null;
   quotaProgressObservedAtMs: number | null;
+  amountLabel?: string;
+  usedAmountUsd?: number | null;
+  limitAmountUsd?: number | null;
+  remainingAmountUsd?: number | null;
 }
 
 export interface ExternalProviderQuotaData {
@@ -740,6 +744,14 @@ export interface ZaiQuotaState
 }
 
 export interface OpencodeQuotaState
+  extends CredentialScopedQuotaState,
+    ExternalProviderQuotaData {
+  status: 'idle' | 'loading' | 'success' | 'error';
+  error?: string;
+  errorStatus?: number;
+}
+
+export interface CursorQuotaState
   extends CredentialScopedQuotaState,
     ExternalProviderQuotaData {
   status: 'idle' | 'loading' | 'success' | 'error';

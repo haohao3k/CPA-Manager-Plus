@@ -7,6 +7,7 @@ import type {
   CodexQuotaWindow,
   CodexRateLimitResetCredit,
   CredentialScopedQuotaState,
+  CursorQuotaState,
   DevinQuotaData,
   DevinQuotaState,
   ExternalProviderQuotaData,
@@ -36,6 +37,7 @@ import {
   fetchClaudeQuota,
   fetchCodexQuota,
   fetchCodexQuotaSummary,
+  fetchCursorQuota,
   fetchDevinQuota,
   fetchKimiQuota,
   fetchMetaQuota,
@@ -79,7 +81,8 @@ type QuotaType =
   | 'meta'
   | 'mistral'
   | 'zai'
-  | 'opencode';
+  | 'opencode'
+  | 'cursor';
 
 export type { QuotaFetchContext };
 
@@ -954,9 +957,9 @@ export const META_CONFIG: QuotaConfig<MetaQuotaState, MetaQuotaData> = {
 };
 
 const createExternalProviderQuotaConfig = <
-  TState extends MistralQuotaState | ZaiQuotaState | OpencodeQuotaState,
+  TState extends MistralQuotaState | ZaiQuotaState | OpencodeQuotaState | CursorQuotaState,
 >(
-  type: 'mistral' | 'zai' | 'opencode',
+  type: 'mistral' | 'zai' | 'opencode' | 'cursor',
   fetchFn: typeof fetchMistralQuota
 ): QuotaConfig<TState, ExternalProviderQuotaData> => ({
   type,
@@ -1007,5 +1010,10 @@ export const ZAI_CONFIG = createExternalProviderQuotaConfig<ZaiQuotaState>('zai'
 export const OPENCODE_CONFIG = createExternalProviderQuotaConfig<OpencodeQuotaState>(
   'opencode',
   fetchOpencodeQuota
+);
+
+export const CURSOR_CONFIG = createExternalProviderQuotaConfig<CursorQuotaState>(
+  'cursor',
+  fetchCursorQuota
 );
 

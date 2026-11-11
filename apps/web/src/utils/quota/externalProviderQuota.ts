@@ -15,8 +15,14 @@ import { normalizeAuthIndex } from './parsers';
 import { createStatusError } from './formatters';
 
 export const MISTRAL_BUDGET_QUOTA_URL = 'https://api.mistral.ai/v1/billing/budget';
+export const MISTRAL_SUBSCRIPTION_QUOTA_URL = 'https://api.mistral.ai/v1/billing/subscription';
 export const ZAI_QUOTA_LIMIT_URL = 'https://api.z.ai/api/monitor/usage/quota/limit';
 export const OPENCODE_GO_USAGE_URL = 'https://opencode.ai/zen/go/v1/usage';
+export const CURSOR_PERIOD_USAGE_URL =
+  'https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage';
+export const CURSOR_PLAN_INFO_URL =
+  'https://api2.cursor.sh/aiserver.v1.DashboardService/GetPlanInfo';
+export const CURSOR_AUTH_USAGE_URL = 'https://api2.cursor.sh/auth/usage';
 
 const parseClampedPercent = (value: unknown): number | null => {
   if (value === null || value === undefined || typeof value === 'boolean') return null;
@@ -82,11 +88,12 @@ const parseJsonBody = (rawPayload: unknown): Record<string, unknown> | null => {
 
 export function parseMistralQuotaPayload(
   rawPayload: unknown,
-  options: { observedAtMs?: number } = {}
+  options: { observedAtMs?: number; subscriptionPayload?: unknown } = {}
 ): ExternalProviderQuotaData | null {
   const root = parseJsonBody(rawPayload);
   if (!root) return null;
 
+  const subRoot = options.subscriptionPayload ? parseJsonBody(options.subscriptionPayload) : null;
   const observedAtMs = options.observedAtMs ?? Date.now();
   const windows: ExternalProviderQuotaWindow[] = [];
 
@@ -101,29 +108,69 @@ export function parseMistralQuotaPayload(
       budget.usage_percentage ?? budget.usagePercentage ?? budget.used_percent ?? budget.usedPercent
     );
     const reset = parseFlexibleResetAt(budget.reset_at ?? budget.resetAt ?? budget.resets_at);
-    if (usedPercent === null && reset.resetAtMs === null && budget.initial_budget === undefined) {
+    const rawInitial = budget.initial_budget ?? budget.initialBudget ?? budget.limit;
+    const initialBudget =
+      typeof rawInitial === 'number'
+        ? rawInitial
+        : typeof rawInitial === 'string' && rawInitial.trim()
+          ? Number(rawInitial)
+          : NaN;
+    if (usedPercent === null && reset.resetAtMs === null && !Number.isFinite(initialBudget)) {
       return;
     }
+
+    let amountLabel: string | undefined;
+    let usedAmountUsd: number | null = null;
+    let limitAmountUsd: number | null = null;
+    let remainingAmountUsd: number | null = null;
+
+    if (Number.isFinite(initialBudget) && initialBudget > 0) {
+      const pct = usedPercent ?? 0;
+      usedAmountUsd = Number(((initialBudget * pct) / 100).toFixed(2));
+      limitAmountUsd = Number(initialBudget.toFixed(2));
+      remainingAmountUsd = Number(Math.max(0, initialBudget - usedAmountUsd).toFixed(2));
+      const rawCurrency =
+        typeof budget.currency === 'string' ? budget.currency.trim().toUpperCase() : 'USD';
+      const symbol = rawCurrency === 'EUR' ? '€' : '$';
+      amountLabel = `${symbol}${usedAmountUsd.toFixed(2)} / ${symbol}${limitAmountUsd.toFixed(2)} (${symbol}${remainingAmountUsd.toFixed(2)} left)`;
+    }
+
     windows.push({
       id,
       label,
-      usedPercent,
+      usedPercent: usedPercent ?? (Number.isFinite(initialBudget) ? 0 : null),
       resetAtMs: reset.resetAtMs,
       resetAccuracy: reset.resetAccuracy,
       limitWindowSeconds: 30 * 86400,
-      quotaProgressObservedAtMs: usedPercent !== null ? observedAtMs : null,
+      quotaProgressObservedAtMs: usedPercent !== null || Number.isFinite(initialBudget) ? observedAtMs : null,
+      amountLabel,
+      usedAmountUsd,
+      limitAmountUsd,
+      remainingAmountUsd,
     });
   };
 
   addBudgetWindow(root.vibe_budget ?? root.vibeBudget, 'vibe-code-allowance', 'Vibe Code Allowance');
   addBudgetWindow(root.api_budget ?? root.apiBudget, 'api-allowance', 'API Allowance');
 
+  if (windows.length === 0) {
+    addBudgetWindow(root, 'monthly-budget', 'Monthly Budget');
+  }
+
   if (windows.length === 0) return null;
+
+  const rawPlan =
+    subRoot?.plan_name ??
+    subRoot?.planName ??
+    subRoot?.tier ??
+    root.plan_name ??
+    root.planName ??
+    root.plan;
 
   return {
     windows,
     observedAtMs,
-    plan: typeof root.plan === 'string' ? root.plan.trim() || null : null,
+    plan: typeof rawPlan === 'string' ? rawPlan.trim() || null : null,
     quotaInventoryObserved: true,
   };
 }
@@ -293,18 +340,303 @@ const requestExternalProviderQuota = async (
   return quotaData;
 };
 
-export const fetchMistralQuota = (
+export function parseCursorQuotaPayload(
+  rawPayload: unknown,
+  options: { observedAtMs?: number; planInfoPayload?: unknown; authUsagePayload?: unknown } = {}
+): ExternalProviderQuotaData | null {
+  const root = parseJsonBody(rawPayload);
+  const planRoot = options.planInfoPayload ? parseJsonBody(options.planInfoPayload) : null;
+  const authUsageRoot = options.authUsagePayload ? parseJsonBody(options.authUsagePayload) : null;
+
+  const observedAtMs = options.observedAtMs ?? Date.now();
+  const windows: ExternalProviderQuotaWindow[] = [];
+
+  const planInfoObj =
+    planRoot?.planInfo && typeof planRoot.planInfo === 'object' && !Array.isArray(planRoot.planInfo)
+      ? (planRoot.planInfo as Record<string, unknown>)
+      : planRoot;
+
+  const cycleStart = parseFlexibleResetAt(
+    root?.billingCycleStart ?? planInfoObj?.billingCycleStart
+  );
+  const cycleEnd = parseFlexibleResetAt(
+    root?.billingCycleEnd ?? planInfoObj?.billingCycleEnd ?? authUsageRoot?.startOfMonth
+  );
+  const limitWindowSeconds =
+    cycleStart.resetAtMs && cycleEnd.resetAtMs && cycleEnd.resetAtMs > cycleStart.resetAtMs
+      ? Math.round((cycleEnd.resetAtMs - cycleStart.resetAtMs) / 1000)
+      : 30 * 86400;
+
+  if (root?.planUsage && typeof root.planUsage === 'object' && !Array.isArray(root.planUsage)) {
+    const planUsage = root.planUsage as Record<string, unknown>;
+    const includedSpendCents = Number(planUsage.includedSpend ?? planUsage.totalSpend ?? 0);
+    const limitCents = Number(planUsage.limit ?? 0);
+    const remainingCents = Number(
+      planUsage.remaining ?? (limitCents > 0 ? Math.max(0, limitCents - includedSpendCents) : 0)
+    );
+    const hasLimit = Number.isFinite(limitCents) && limitCents > 0;
+    const hasSpend = Number.isFinite(includedSpendCents) && includedSpendCents >= 0;
+    const usedPercent = hasLimit
+      ? Math.min(100, Math.max(0, (includedSpendCents / limitCents) * 100))
+      : parseClampedPercent(planUsage.totalPercentUsed ?? planUsage.autoPercentUsed);
+
+    const usedAmountUsd = hasSpend ? Number((includedSpendCents / 100).toFixed(2)) : null;
+    const limitAmountUsd = hasLimit ? Number((limitCents / 100).toFixed(2)) : null;
+    const remainingAmountUsd =
+      hasLimit && Number.isFinite(remainingCents)
+        ? Number(Math.max(0, remainingCents / 100).toFixed(2))
+        : null;
+    const amountLabel =
+      usedAmountUsd !== null && limitAmountUsd !== null && remainingAmountUsd !== null
+        ? `$${usedAmountUsd.toFixed(2)} / $${limitAmountUsd.toFixed(2)} ($${remainingAmountUsd.toFixed(2)} left)`
+        : usedAmountUsd !== null
+          ? `$${usedAmountUsd.toFixed(2)} used`
+          : undefined;
+
+    if (usedPercent !== null || amountLabel) {
+      windows.push({
+        id: 'included-usage',
+        label: 'Included Usage',
+        usedPercent,
+        resetAtMs: cycleEnd.resetAtMs,
+        resetAccuracy: cycleEnd.resetAccuracy,
+        limitWindowSeconds,
+        quotaProgressObservedAtMs: observedAtMs,
+        amountLabel,
+        usedAmountUsd,
+        limitAmountUsd,
+        remainingAmountUsd,
+      });
+    }
+  }
+
+  if (
+    root?.spendLimitUsage &&
+    typeof root.spendLimitUsage === 'object' &&
+    !Array.isArray(root.spendLimitUsage)
+  ) {
+    const spendLimit = root.spendLimitUsage as Record<string, unknown>;
+    const limitCents = Number(
+      spendLimit.pooledLimit ?? spendLimit.individualLimit ?? spendLimit.limit ?? 0
+    );
+    const usedCents = Number(spendLimit.pooledUsed ?? spendLimit.totalSpend ?? 0);
+    const remainingCents = Number(
+      spendLimit.pooledRemaining ?? (limitCents > 0 ? Math.max(0, limitCents - usedCents) : 0)
+    );
+    const hasLimit = Number.isFinite(limitCents) && limitCents > 0;
+    const hasSpend = Number.isFinite(usedCents) && usedCents > 0;
+
+    if (hasLimit || hasSpend) {
+      const usedAmountUsd = Number((Math.max(0, usedCents) / 100).toFixed(2));
+      const limitAmountUsd = hasLimit ? Number((limitCents / 100).toFixed(2)) : null;
+      const remainingAmountUsd =
+        hasLimit && Number.isFinite(remainingCents)
+          ? Number(Math.max(0, remainingCents / 100).toFixed(2))
+          : null;
+      const usedPercent = hasLimit
+        ? Math.min(100, Math.max(0, (usedCents / limitCents) * 100))
+        : null;
+      const limitType =
+        typeof spendLimit.limitType === 'string' ? spendLimit.limitType.trim().toLowerCase() : '';
+      const label = limitType === 'team' ? 'Team Spend Limit' : 'Spend Limit';
+      const amountLabel =
+        limitAmountUsd !== null && remainingAmountUsd !== null
+          ? `$${usedAmountUsd.toFixed(2)} / $${limitAmountUsd.toFixed(2)} ($${remainingAmountUsd.toFixed(2)} left)`
+          : `$${usedAmountUsd.toFixed(2)} used`;
+
+      windows.push({
+        id: 'spend-limit',
+        label,
+        usedPercent,
+        resetAtMs: cycleEnd.resetAtMs,
+        resetAccuracy: cycleEnd.resetAccuracy,
+        limitWindowSeconds,
+        quotaProgressObservedAtMs: usedPercent !== null ? observedAtMs : null,
+        amountLabel,
+        usedAmountUsd,
+        limitAmountUsd,
+        remainingAmountUsd,
+      });
+    }
+  }
+
+  if (windows.length === 0 && authUsageRoot) {
+    Object.entries(authUsageRoot).forEach(([modelKey, val]) => {
+      if (!val || typeof val !== 'object' || Array.isArray(val)) return;
+      const bucket = val as Record<string, unknown>;
+      const used = Number(bucket.numRequests ?? 0);
+      const max = Number(bucket.maxRequestUsage ?? 0);
+      if (!Number.isFinite(max) || max <= 0) return;
+      const usedPercent = Math.min(100, Math.max(0, (used / max) * 100));
+      windows.push({
+        id: `requests-${modelKey}`,
+        label: `${modelKey} Requests`,
+        usedPercent,
+        resetAtMs: cycleEnd.resetAtMs,
+        resetAccuracy: cycleEnd.resetAccuracy,
+        limitWindowSeconds,
+        quotaProgressObservedAtMs: observedAtMs,
+        amountLabel: `${used} / ${max} reqs`,
+      });
+    });
+  }
+
+  if (windows.length === 0) return null;
+
+  const rawPlan =
+    planInfoObj?.planName ??
+    planInfoObj?.plan_name ??
+    root?.planName ??
+    root?.plan;
+
+  return {
+    windows,
+    observedAtMs,
+    plan: typeof rawPlan === 'string' ? rawPlan.trim() || null : null,
+    quotaInventoryObserved: true,
+  };
+}
+
+export const fetchMistralQuota = async (
   file: AuthFileItem,
   t: TFunction,
   requestScope?: ApiClientRequestScope
-): Promise<ExternalProviderQuotaData> =>
-  requestExternalProviderQuota(
-    file,
-    MISTRAL_BUDGET_QUOTA_URL,
-    parseMistralQuotaPayload,
-    t,
-    requestScope
+): Promise<ExternalProviderQuotaData> => {
+  const rawAuthIndex = file['auth_index'] ?? file.authIndex;
+  const authIndex = normalizeAuthIndex(rawAuthIndex);
+  if (!authIndex) {
+    throw new Error(t('common.quota_missing_identity', { defaultValue: 'Missing credential auth_index' }));
+  }
+
+  const reqConfig = requestScope ? createScopedApiRequestConfig(requestScope) : undefined;
+  const [budgetRes, subRes] = await Promise.all([
+    apiCallApi.request(
+      {
+        authIndex,
+        method: 'GET',
+        url: MISTRAL_BUDGET_QUOTA_URL,
+        header: {
+          Authorization: 'Bearer $TOKEN$',
+          Accept: 'application/json',
+        },
+      },
+      reqConfig
+    ),
+    apiCallApi
+      .request(
+        {
+          authIndex,
+          method: 'GET',
+          url: MISTRAL_SUBSCRIPTION_QUOTA_URL,
+          header: {
+            Authorization: 'Bearer $TOKEN$',
+            Accept: 'application/json',
+          },
+        },
+        reqConfig
+      )
+      .catch(() => null),
+  ]);
+
+  if (budgetRes.statusCode < 200 || budgetRes.statusCode >= 300) {
+    throw createStatusError(getApiCallErrorMessage(budgetRes), budgetRes.statusCode);
+  }
+
+  const quotaData = parseMistralQuotaPayload(budgetRes.body ?? budgetRes.bodyText, {
+    observedAtMs: Date.now(),
+    subscriptionPayload:
+      subRes && subRes.statusCode >= 200 && subRes.statusCode < 300
+        ? (subRes.body ?? subRes.bodyText)
+        : undefined,
+  });
+  if (!quotaData) {
+    throw new Error(t('common.quota_empty_data', { defaultValue: 'No quota data returned by upstream' }));
+  }
+  return quotaData;
+};
+
+export const fetchCursorQuota = async (
+  file: AuthFileItem,
+  t: TFunction,
+  requestScope?: ApiClientRequestScope
+): Promise<ExternalProviderQuotaData> => {
+  const rawAuthIndex = file['auth_index'] ?? file.authIndex;
+  const authIndex = normalizeAuthIndex(rawAuthIndex);
+  if (!authIndex) {
+    throw new Error(t('common.quota_missing_identity', { defaultValue: 'Missing credential auth_index' }));
+  }
+
+  const reqConfig = requestScope ? createScopedApiRequestConfig(requestScope) : undefined;
+  const connectHeaders = {
+    Authorization: 'Bearer $TOKEN$',
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    'Connect-Protocol-Version': '1',
+  };
+
+  const [periodRes, planRes, authUsageRes] = await Promise.all([
+    apiCallApi.request(
+      {
+        authIndex,
+        method: 'POST',
+        url: CURSOR_PERIOD_USAGE_URL,
+        header: connectHeaders,
+        data: '{}',
+      },
+      reqConfig
+    ),
+    apiCallApi
+      .request(
+        {
+          authIndex,
+          method: 'POST',
+          url: CURSOR_PLAN_INFO_URL,
+          header: connectHeaders,
+          data: '{}',
+        },
+        reqConfig
+      )
+      .catch(() => null),
+    apiCallApi
+      .request(
+        {
+          authIndex,
+          method: 'GET',
+          url: CURSOR_AUTH_USAGE_URL,
+          header: {
+            Authorization: 'Bearer $TOKEN$',
+            Accept: 'application/json',
+          },
+        },
+        reqConfig
+      )
+      .catch(() => null),
+  ]);
+
+  const periodOk = periodRes.statusCode >= 200 && periodRes.statusCode < 300;
+  const authUsageOk =
+    authUsageRes !== null && authUsageRes.statusCode >= 200 && authUsageRes.statusCode < 300;
+
+  if (!periodOk && !authUsageOk) {
+    throw createStatusError(getApiCallErrorMessage(periodRes), periodRes.statusCode);
+  }
+
+  const quotaData = parseCursorQuotaPayload(
+    periodOk ? (periodRes.body ?? periodRes.bodyText) : null,
+    {
+      observedAtMs: Date.now(),
+      planInfoPayload:
+        planRes && planRes.statusCode >= 200 && planRes.statusCode < 300
+          ? (planRes.body ?? planRes.bodyText)
+          : undefined,
+      authUsagePayload: authUsageOk ? (authUsageRes.body ?? authUsageRes.bodyText) : undefined,
+    }
   );
+  if (!quotaData) {
+    throw new Error(t('common.quota_empty_data', { defaultValue: 'No quota data returned by upstream' }));
+  }
+  return quotaData;
+};
 
 export const fetchZaiQuota = (
   file: AuthFileItem,

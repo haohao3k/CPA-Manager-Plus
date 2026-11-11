@@ -52,6 +52,7 @@ import {
   CLAUDE_CONFIG,
   CODEX_CONFIG,
   CODEX_SUMMARY_CONFIG,
+  CURSOR_CONFIG,
   DEVIN_CONFIG,
   KIMI_CONFIG,
   META_CONFIG,
@@ -333,6 +334,7 @@ import {
 import type {
   AuthFileItem,
   CodexQuotaState,
+  CursorQuotaState,
   DevinQuotaData,
   DevinQuotaState,
   ExternalProviderQuotaData,
@@ -1398,6 +1400,7 @@ export function AccountsPage() {
   const mistralQuota = useQuotaStore((state) => state.mistralQuota);
   const zaiQuota = useQuotaStore((state) => state.zaiQuota);
   const opencodeQuota = useQuotaStore((state) => state.opencodeQuota);
+  const cursorQuota = useQuotaStore((state) => state.cursorQuota);
   const xaiQuota = useQuotaStore((state) => state.xaiQuota);
   const baseQuotaStores = useMemo(
     () => ({
@@ -1410,6 +1413,7 @@ export function AccountsPage() {
       mistralQuota,
       zaiQuota,
       opencodeQuota,
+      cursorQuota,
       xaiQuota,
     }),
     [
@@ -1422,6 +1426,7 @@ export function AccountsPage() {
       mistralQuota,
       zaiQuota,
       opencodeQuota,
+      cursorQuota,
       xaiQuota,
     ]
   );
@@ -1434,6 +1439,7 @@ export function AccountsPage() {
   const setMistralQuota = useQuotaStore((state) => state.setMistralQuota);
   const setZaiQuota = useQuotaStore((state) => state.setZaiQuota);
   const setOpencodeQuota = useQuotaStore((state) => state.setOpencodeQuota);
+  const setCursorQuota = useQuotaStore((state) => state.setCursorQuota);
   const setXaiQuota = useQuotaStore((state) => state.setXaiQuota);
 
   const [activeView, setActiveView] = useState<AccountsView>(
@@ -3137,6 +3143,9 @@ export function AccountsPage() {
         case OPENCODE_CONFIG.type:
           prune(OPENCODE_CONFIG, setOpencodeQuota);
           break;
+        case CURSOR_CONFIG.type:
+          prune(CURSOR_CONFIG, setCursorQuota);
+          break;
         default:
           break;
       }
@@ -3149,6 +3158,7 @@ export function AccountsPage() {
       setClaudeQuota,
       setCredentialEvidenceBoundaries,
       setCodexQuota,
+      setCursorQuota,
       setDevinQuota,
       setKimiQuota,
       setMetaQuota,
@@ -4047,13 +4057,16 @@ export function AccountsPage() {
         }
         case MISTRAL_CONFIG.type:
         case ZAI_CONFIG.type:
-        case OPENCODE_CONFIG.type: {
+        case OPENCODE_CONFIG.type:
+        case CURSOR_CONFIG.type: {
           const storeMap =
             row.provider === MISTRAL_CONFIG.type
               ? baseQuotaStores.mistralQuota
               : row.provider === ZAI_CONFIG.type
                 ? baseQuotaStores.zaiQuota
-                : baseQuotaStores.opencodeQuota;
+                : row.provider === OPENCODE_CONFIG.type
+                  ? baseQuotaStores.opencodeQuota
+                  : baseQuotaStores.cursorQuota;
           const state = storeMap ? getCredentialScopedQuotaState(storeMap, row.raw) : undefined;
           if (state?.status === 'success' && state.windows.length > 0) {
             fetchedAtMs = state.fetchedAtMs ?? state.observedAtMs ?? undefined;
@@ -6708,6 +6721,14 @@ export function AccountsPage() {
               getScopedQuotaState(OPENCODE_CONFIG, baseQuotaStores.opencodeQuota ?? {}, row.raw)
             )
           );
+        case CURSOR_CONFIG.type:
+          return toAccountQuotaRefreshOutcome(
+            await refreshWithConfig<CursorQuotaState, ExternalProviderQuotaData>(
+              CURSOR_CONFIG,
+              setCursorQuota,
+              getScopedQuotaState(CURSOR_CONFIG, baseQuotaStores.cursorQuota ?? {}, row.raw)
+            )
+          );
         default:
           return { status: 'error', error: t('common.unknown_error') };
       }
@@ -6717,6 +6738,7 @@ export function AccountsPage() {
       setAntigravityQuota,
       setClaudeQuota,
       setCodexQuota,
+      setCursorQuota,
       setDevinQuota,
       setKimiQuota,
       setMetaQuota,
@@ -8901,8 +8923,12 @@ export function AccountsPage() {
     const percentText = windowRemaining !== null ? formatPercent(windowRemaining) : '-';
     const remainingParts = formatQuotaRemainingPercentParts(percentText, i18n.language);
     const remainingText = formatQuotaRemainingPercentDisplay(percentText, i18n.language);
+    const compactAmountLabel = window.amountLabel
+      ? window.amountLabel.replace(/\s*\([^)]*\)\s*$/, '')
+      : '';
     const cardTitle = [
       `${readableLabel}: ${remainingText}${relativeReset ? ` | ${relativeReset}` : ''}`,
+      window.amountLabel || '',
       hasActual
         ? `${t('accounts.quota_used_short')} ${formatCompactUsd(
             windowUsageData.currentCost!
@@ -8996,6 +9022,15 @@ export function AccountsPage() {
               </span>
               <span className={styles.quotaWindowTokenCompact}>
                 {formatCompactNumber(windowUsageData.currentTokens!)}
+              </span>
+            </span>
+          ) : compactAmountLabel ? (
+            <span
+              className={styles.quotaUsageGroup}
+              title={window.amountLabel}
+            >
+              <span className={styles.quotaWindowCost}>
+                {compactAmountLabel}
               </span>
             </span>
           ) : (

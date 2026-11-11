@@ -41,7 +41,8 @@ export type QuotaProviderType =
   | 'meta'
   | 'mistral'
   | 'zai'
-  | 'opencode';
+  | 'opencode'
+  | 'cursor';
 export type OAuthConfigLoadState = 'loading' | 'ready' | 'unsupported' | 'error';
 
 export const QUOTA_PROVIDER_TYPES = new Set<QuotaProviderType>([
@@ -55,6 +56,7 @@ export const QUOTA_PROVIDER_TYPES = new Set<QuotaProviderType>([
   'mistral',
   'zai',
   'opencode',
+  'cursor',
 ]);
 
 export const AUTH_FILE_REFRESH_WARNING_MS = 24 * 60 * 60 * 1000;
@@ -198,6 +200,9 @@ export const normalizeProviderKey = (value: string) => {
   if (key === 'muse') return 'meta';
   if (key === 'opencode-go') return 'opencode';
   if (key === 'z-ai' || key === 'z.ai' || key === 'glm') return 'zai';
+  if (key === 'openai-compatible-mistral' || key.startsWith('openai-compatible-mistral')) {
+    return 'mistral';
+  }
   return key;
 };
 

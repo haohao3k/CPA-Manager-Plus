@@ -1073,6 +1073,10 @@ const snapshotDefinition = (
     options.provider === 'antigravity' ||
     options.provider === 'kimi' ||
     options.provider === 'meta' ||
+    options.provider === 'mistral' ||
+    options.provider === 'zai' ||
+    options.provider === 'opencode' ||
+    options.provider === 'cursor' ||
     options.provider === 'xai' ||
     options.provider === 'devin'
       ? options.provider

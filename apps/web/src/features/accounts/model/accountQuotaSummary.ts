@@ -4,6 +4,7 @@ import type {
   ClaudeQuotaState,
   CodexQuotaState,
   CodexSpendControlLimit,
+  CursorQuotaState,
   DevinQuotaState,
   KimiQuotaState,
   MetaQuotaState,
@@ -86,6 +87,7 @@ export interface AccountQuotaStores {
   mistralQuota?: Record<string, MistralQuotaState>;
   zaiQuota?: Record<string, ZaiQuotaState>;
   opencodeQuota?: Record<string, OpencodeQuotaState>;
+  cursorQuota?: Record<string, CursorQuotaState>;
   xaiQuota: Record<string, XaiQuotaState>;
 }
 
@@ -293,6 +295,9 @@ export const normalizeAccountProvider = (file: AuthFileItem): string => {
   if (key === 'muse') return 'meta';
   if (key === 'opencode-go') return 'opencode';
   if (key === 'z-ai' || key === 'z.ai' || key === 'glm') return 'zai';
+  if (key === 'openai-compatible-mistral' || key.startsWith('openai-compatible-mistral')) {
+    return 'mistral';
+  }
   return key || 'unknown';
 };
 
@@ -1171,13 +1176,20 @@ export const resolveAccountQuota = (
     );
   }
 
-  if (provider === 'mistral' || provider === 'zai' || provider === 'opencode') {
+  if (
+    provider === 'mistral' ||
+    provider === 'zai' ||
+    provider === 'opencode' ||
+    provider === 'cursor'
+  ) {
     const storeMap =
       provider === 'mistral'
         ? stores.mistralQuota
         : provider === 'zai'
           ? stores.zaiQuota
-          : stores.opencodeQuota;
+          : provider === 'opencode'
+            ? stores.opencodeQuota
+            : stores.cursorQuota;
     const quota = storeMap ? getCredentialScopedQuotaState(storeMap, file) : undefined;
     if (!quota) return emptyQuota(filePlanType);
     const planType = quota.plan ?? filePlanType;
