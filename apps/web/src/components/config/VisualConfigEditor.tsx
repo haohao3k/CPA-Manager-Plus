@@ -1331,29 +1331,256 @@ export function VisualConfigEditor({
             title={t('config_management.visual.sections.quota.title')}
             description={t('config_management.visual.sections.quota.description')}
           >
-            <SectionGrid>
-              <ToggleRow
-                title={t('config_management.visual.sections.quota.switch_project')}
-                description={t('config_management.visual.sections.quota.switch_project_desc')}
-                checked={values.quotaSwitchProject}
-                disabled={disabled}
-                onChange={(quotaSwitchProject) => onChange({ quotaSwitchProject })}
-              />
-              <ToggleRow
-                title={t('config_management.visual.sections.quota.switch_preview_model')}
-                description={t('config_management.visual.sections.quota.switch_preview_model_desc')}
-                checked={values.quotaSwitchPreviewModel}
-                disabled={disabled}
-                onChange={(quotaSwitchPreviewModel) => onChange({ quotaSwitchPreviewModel })}
-              />
-              <ToggleRow
-                title={t('config_management.visual.sections.quota.antigravity_credits')}
-                description={t('config_management.visual.sections.quota.antigravity_credits_desc')}
-                checked={values.quotaAntigravityCredits}
-                disabled={disabled}
-                onChange={(quotaAntigravityCredits) => onChange({ quotaAntigravityCredits })}
-              />
-            </SectionGrid>
+            <SectionStack>
+              <SectionGrid>
+                <ToggleRow
+                  title={t('config_management.visual.sections.quota.switch_project')}
+                  description={t('config_management.visual.sections.quota.switch_project_desc')}
+                  checked={values.quotaSwitchProject}
+                  disabled={disabled}
+                  onChange={(quotaSwitchProject) => onChange({ quotaSwitchProject })}
+                />
+                <ToggleRow
+                  title={t('config_management.visual.sections.quota.switch_preview_model')}
+                  description={t('config_management.visual.sections.quota.switch_preview_model_desc')}
+                  checked={values.quotaSwitchPreviewModel}
+                  disabled={disabled}
+                  onChange={(quotaSwitchPreviewModel) => onChange({ quotaSwitchPreviewModel })}
+                />
+                <ToggleRow
+                  title={t('config_management.visual.sections.quota.antigravity_credits')}
+                  description={t('config_management.visual.sections.quota.antigravity_credits_desc')}
+                  checked={values.quotaAntigravityCredits}
+                  disabled={disabled}
+                  onChange={(quotaAntigravityCredits) => onChange({ quotaAntigravityCredits })}
+                />
+              </SectionGrid>
+
+              <Divider />
+
+              <SectionSubsection
+                title={t('config_management.visual.sections.quota.codex_metering_bypass_title', {
+                  defaultValue: 'Codex Metering Bypass (Go Sidecar · Autocut & Finalize)',
+                })}
+                description={t(
+                  'config_management.visual.sections.quota.codex_metering_bypass_desc',
+                  {
+                    defaultValue:
+                      'Native in-process Go Sidecar data-plane (:9gl-med) for Codex OAuth accounts: HTTP/1.1 TCP RST (SO_LINGER=0), __pad9f3 toolpad cut, __finalize_9f3 plain-answer cut, external autocompact chain, and 5h quota circuit breaker.',
+                  }
+                )}
+              >
+                <SectionGrid>
+                  <ToggleRow
+                    title={t('config_management.visual.sections.quota.codex_metering_bypass', {
+                      defaultValue: 'Enable Codex Metering Bypass',
+                    })}
+                    description={t(
+                      'config_management.visual.sections.quota.codex_metering_bypass_toggle_desc',
+                      {
+                        defaultValue:
+                          'Master switch for in-process Go Sidecar autocut, toolpad, and medium effort / priority clamps on Codex OAuth.',
+                      }
+                    )}
+                    checked={values.codexMeteringBypass}
+                    disabled={disabled}
+                    onChange={(codexMeteringBypass) => onChange({ codexMeteringBypass })}
+                  />
+                  <ToggleRow
+                    title={t('config_management.visual.sections.quota.codex_autocut_finalize', {
+                      defaultValue: 'Forced Finalize Layer (__finalize_9f3)',
+                    })}
+                    description={t(
+                      'config_management.visual.sections.quota.codex_autocut_finalize_desc',
+                      {
+                        defaultValue:
+                          'Route plain assistant answers through __finalize_9f3, rewrite to standard text client-side, and abort upstream mid-pad.',
+                      }
+                    )}
+                    checked={values.codexAutocutFinalize}
+                    disabled={disabled}
+                    onChange={(codexAutocutFinalize) => onChange({ codexAutocutFinalize })}
+                  />
+                  <FieldShell
+                    label={t(
+                      'config_management.visual.sections.quota.codex_autocut_reinforcement',
+                      {
+                        defaultValue: 'Recency Reinforcement Mode',
+                      }
+                    )}
+                    hint={t(
+                      'config_management.visual.sections.quota.codex_autocut_reinforcement_hint',
+                      {
+                        defaultValue:
+                          'always (:9gl-med baseline) appends the mandatory developer pad/finalize reminder on every turn.',
+                      }
+                    )}
+                  >
+                    <Select
+                      value={values.codexAutocutReinforcement}
+                      options={[
+                        { value: 'always', label: 'always (:9gl-med Recommended)' },
+                        { value: 'adaptive', label: 'adaptive (violation streak > 0)' },
+                        { value: 'off', label: 'off' },
+                      ]}
+                      disabled={disabled}
+                      onChange={(nextValue) =>
+                        onChange({
+                          codexAutocutReinforcement:
+                            nextValue as VisualConfigValues['codexAutocutReinforcement'],
+                        })
+                      }
+                    />
+                  </FieldShell>
+                  <Input
+                    label={t('config_management.visual.sections.quota.codex_max_concurrent', {
+                      defaultValue: 'Max Concurrent Codex Streams',
+                    })}
+                    type="number"
+                    placeholder="2"
+                    value={values.codexMaxConcurrentRequests}
+                    onChange={(e) => onChange({ codexMaxConcurrentRequests: e.target.value })}
+                    disabled={disabled}
+                    hint={t('config_management.visual.sections.quota.codex_max_concurrent_hint', {
+                      defaultValue: 'FIFO global semaphore cap (default: 2).',
+                    })}
+                  />
+                  <Input
+                    label={t('config_management.visual.sections.quota.codex_max_tool_chars', {
+                      defaultValue: 'Max Tool Call Chars',
+                    })}
+                    type="number"
+                    placeholder="8000"
+                    value={values.codexAutocutMaxToolChars}
+                    onChange={(e) => onChange({ codexAutocutMaxToolChars: e.target.value })}
+                    disabled={disabled}
+                    hint={t('config_management.visual.sections.quota.codex_max_tool_chars_hint', {
+                      defaultValue: 'Single-ceiling prompt rule (:9fu/:9gl-med default: 8000).',
+                    })}
+                  />
+                  <Input
+                    label={t('config_management.visual.sections.quota.codex_hard_arg_cap', {
+                      defaultValue: 'Hard Tool Arg Cap (Server Cut)',
+                    })}
+                    type="number"
+                    placeholder="8000"
+                    value={values.codexAutocutHardArgCap}
+                    onChange={(e) => onChange({ codexAutocutHardArgCap: e.target.value })}
+                    disabled={disabled}
+                    hint={t('config_management.visual.sections.quota.codex_hard_arg_cap_hint', {
+                      defaultValue:
+                        'Server-side JSON auto-close & TCP RST cap when pad is omitted (default: 8000).',
+                    })}
+                  />
+                  <Input
+                    label={t('config_management.visual.sections.quota.codex_circuit_breaker_min', {
+                      defaultValue: '5h Quota Circuit Breaker Min Remaining (%)',
+                    })}
+                    type="number"
+                    placeholder="30"
+                    value={values.codexQuotaCircuitBreakerMinRemaining}
+                    onChange={(e) =>
+                      onChange({ codexQuotaCircuitBreakerMinRemaining: e.target.value })
+                    }
+                    disabled={disabled}
+                    hint={t(
+                      'config_management.visual.sections.quota.codex_circuit_breaker_min_hint',
+                      {
+                        defaultValue:
+                          'Auto-disables Codex OAuth account when 5h remaining drops below this % (default: 30, 0 disables).',
+                      }
+                    )}
+                  />
+                  <ToggleRow
+                    title={t('config_management.visual.sections.quota.codex_autocompact_enabled', {
+                      defaultValue: 'Server-Side Autocompact',
+                    })}
+                    description={t(
+                      'config_management.visual.sections.quota.codex_autocompact_enabled_desc',
+                      {
+                        defaultValue:
+                          'Compacts long contexts via cheap external combo chain + pair-atomic head-anchor + 250k hard cap.',
+                      }
+                    )}
+                    checked={values.codexAutocompactEnabled}
+                    disabled={disabled}
+                    onChange={(codexAutocompactEnabled) => onChange({ codexAutocompactEnabled })}
+                  />
+                  <ToggleRow
+                    title={t('config_management.visual.sections.quota.codex_compact_hijack', {
+                      defaultValue: 'Hijack Client /compact Turns',
+                    })}
+                    description={t(
+                      'config_management.visual.sections.quota.codex_compact_hijack_desc',
+                      {
+                        defaultValue:
+                          'Reroutes Pi coding agent /compact summarization turns to the external summarizer combo before hitting Codex.',
+                      }
+                    )}
+                    checked={values.codexCompactHijack}
+                    disabled={disabled}
+                    onChange={(codexCompactHijack) => onChange({ codexCompactHijack })}
+                  />
+                  <Input
+                    label={t(
+                      'config_management.visual.sections.quota.codex_autocompact_threshold',
+                      {
+                        defaultValue: 'Autocompact Threshold (est. tokens)',
+                      }
+                    )}
+                    type="number"
+                    placeholder="150000"
+                    value={values.codexAutocompactThreshold}
+                    onChange={(e) => onChange({ codexAutocompactThreshold: e.target.value })}
+                    disabled={disabled}
+                  />
+                  <Input
+                    label={t('config_management.visual.sections.quota.codex_autocompact_keep', {
+                      defaultValue: 'Autocompact Keep Tail Tokens',
+                    })}
+                    type="number"
+                    placeholder="40000"
+                    value={values.codexAutocompactKeepTokens}
+                    onChange={(e) => onChange({ codexAutocompactKeepTokens: e.target.value })}
+                    disabled={disabled}
+                  />
+                  <Input
+                    label={t('config_management.visual.sections.quota.codex_autocompact_hard_cap', {
+                      defaultValue: 'Hard Input Cap Tokens',
+                    })}
+                    type="number"
+                    placeholder="250000"
+                    value={values.codexAutocompactHardCapTokens}
+                    onChange={(e) => onChange({ codexAutocompactHardCapTokens: e.target.value })}
+                    disabled={disabled}
+                  />
+                  <Input
+                    label={t(
+                      'config_management.visual.sections.quota.codex_autocompact_external_model',
+                      {
+                        defaultValue: 'Primary External Summarizer Model / Combo',
+                      }
+                    )}
+                    placeholder="deepseek-v4.1-flash"
+                    value={values.codexAutocompactExternalModel}
+                    onChange={(e) => onChange({ codexAutocompactExternalModel: e.target.value })}
+                    disabled={disabled}
+                  />
+                  <Input
+                    label={t(
+                      'config_management.visual.sections.quota.codex_autocompact_external_models',
+                      {
+                        defaultValue: 'Fallback External Summarizer Chain (comma-separated)',
+                      }
+                    )}
+                    placeholder="glm-5.3-flash"
+                    value={values.codexAutocompactExternalModels}
+                    onChange={(e) => onChange({ codexAutocompactExternalModels: e.target.value })}
+                    disabled={disabled}
+                  />
+                </SectionGrid>
+              </SectionSubsection>
+            </SectionStack>
           </ConfigSection>
 
           <ConfigSection

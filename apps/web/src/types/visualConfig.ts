@@ -151,6 +151,20 @@ export type VisualConfigValues = {
   codexHeaderBetaFeatures: string;
   codexIdentityConfuse: boolean;
   codexIdentityConfuseSupported: boolean;
+  codexMeteringBypass: boolean;
+  codexAutocutFinalize: boolean;
+  codexAutocutReinforcement: 'always' | 'adaptive' | 'off';
+  codexAutocutMaxToolChars: string;
+  codexAutocutHardArgCap: string;
+  codexMaxConcurrentRequests: string;
+  codexQuotaCircuitBreakerMinRemaining: string;
+  codexAutocompactEnabled: boolean;
+  codexAutocompactThreshold: string;
+  codexAutocompactKeepTokens: string;
+  codexAutocompactHardCapTokens: string;
+  codexAutocompactExternalModel: string;
+  codexAutocompactExternalModels: string;
+  codexCompactHijack: boolean;
   devinSensitiveWords: string[];
   payloadDefaultRules: PayloadRule[];
   payloadDefaultRawRules: PayloadRule[];
@@ -228,6 +242,20 @@ export const DEFAULT_VISUAL_VALUES: VisualConfigValues = {
   codexHeaderBetaFeatures: '',
   codexIdentityConfuse: false,
   codexIdentityConfuseSupported: true,
+  codexMeteringBypass: false,
+  codexAutocutFinalize: true,
+  codexAutocutReinforcement: 'always',
+  codexAutocutMaxToolChars: '',
+  codexAutocutHardArgCap: '',
+  codexMaxConcurrentRequests: '',
+  codexQuotaCircuitBreakerMinRemaining: '',
+  codexAutocompactEnabled: true,
+  codexAutocompactThreshold: '',
+  codexAutocompactKeepTokens: '',
+  codexAutocompactHardCapTokens: '',
+  codexAutocompactExternalModel: '',
+  codexAutocompactExternalModels: '',
+  codexCompactHijack: true,
   devinSensitiveWords: [],
   payloadDefaultRules: [],
   payloadDefaultRawRules: [],

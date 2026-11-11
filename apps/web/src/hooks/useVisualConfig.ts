@@ -275,6 +275,62 @@ const VISUAL_CONFIG_V8_PATH_MAPPINGS: VisualConfigPathMapping[] = [
     canonical: ['oauth', 'providers', 'codex', 'identity-confuse'],
   },
   {
+    legacy: ['codex', 'metering-bypass'],
+    canonical: ['upstream', 'codex', 'metering-bypass'],
+  },
+  {
+    legacy: ['codex', 'autocut-finalize'],
+    canonical: ['upstream', 'codex', 'autocut-finalize'],
+  },
+  {
+    legacy: ['codex', 'autocut-reinforcement'],
+    canonical: ['upstream', 'codex', 'autocut-reinforcement'],
+  },
+  {
+    legacy: ['codex', 'autocut-max-tool-chars'],
+    canonical: ['upstream', 'codex', 'autocut-max-tool-chars'],
+  },
+  {
+    legacy: ['codex', 'autocut-hard-arg-cap'],
+    canonical: ['upstream', 'codex', 'autocut-hard-arg-cap'],
+  },
+  {
+    legacy: ['codex', 'max-concurrent-requests'],
+    canonical: ['upstream', 'codex', 'max-concurrent-requests'],
+  },
+  {
+    legacy: ['codex', 'quota-circuit-breaker-min-remaining'],
+    canonical: ['upstream', 'codex', 'quota-circuit-breaker-min-remaining'],
+  },
+  {
+    legacy: ['codex', 'autocompact-enabled'],
+    canonical: ['upstream', 'codex', 'autocompact-enabled'],
+  },
+  {
+    legacy: ['codex', 'autocompact-threshold'],
+    canonical: ['upstream', 'codex', 'autocompact-threshold'],
+  },
+  {
+    legacy: ['codex', 'autocompact-keep-tokens'],
+    canonical: ['upstream', 'codex', 'autocompact-keep-tokens'],
+  },
+  {
+    legacy: ['codex', 'autocompact-hard-cap-tokens'],
+    canonical: ['upstream', 'codex', 'autocompact-hard-cap-tokens'],
+  },
+  {
+    legacy: ['codex', 'autocompact-external-model'],
+    canonical: ['upstream', 'codex', 'autocompact-external-model'],
+  },
+  {
+    legacy: ['codex', 'autocompact-external-models'],
+    canonical: ['upstream', 'codex', 'autocompact-external-models'],
+  },
+  {
+    legacy: ['codex', 'compact-hijack'],
+    canonical: ['upstream', 'codex', 'compact-hijack'],
+  },
+  {
     legacy: ['disable-claude-cloak-mode'],
     canonical: ['upstream', 'claude', 'disable-claude-cloak-mode'],
   },
@@ -822,6 +878,20 @@ function getNextDirtyFields(
       'codexHeaderUserAgent',
       'codexHeaderBetaFeatures',
       'codexIdentityConfuse',
+      'codexMeteringBypass',
+      'codexAutocutFinalize',
+      'codexAutocutReinforcement',
+      'codexAutocutMaxToolChars',
+      'codexAutocutHardArgCap',
+      'codexMaxConcurrentRequests',
+      'codexQuotaCircuitBreakerMinRemaining',
+      'codexAutocompactEnabled',
+      'codexAutocompactThreshold',
+      'codexAutocompactKeepTokens',
+      'codexAutocompactHardCapTokens',
+      'codexAutocompactExternalModel',
+      'codexAutocompactExternalModels',
+      'codexCompactHijack',
     ] as Array<keyof VisualConfigValues>
   ).forEach(updateScalarDirty);
 
@@ -1289,6 +1359,37 @@ export function useVisualConfig(runtime: VisualConfigRuntime = {}) {
         // Runtime support is overlaid on returned visualValues so a late version
         // header can update the UI without reparsing the YAML.
         codexIdentityConfuseSupported: true,
+        codexMeteringBypass: Boolean(readCompat(['codex', 'metering-bypass']) ?? false),
+        codexAutocutFinalize: Boolean(readCompat(['codex', 'autocut-finalize']) ?? true),
+        codexAutocutReinforcement: (() => {
+          const raw = String(readCompat(['codex', 'autocut-reinforcement']) ?? 'always')
+            .trim()
+            .toLowerCase();
+          return raw === 'adaptive' || raw === 'off' ? raw : 'always';
+        })(),
+        codexAutocutMaxToolChars: String(readCompat(['codex', 'autocut-max-tool-chars']) ?? ''),
+        codexAutocutHardArgCap: String(readCompat(['codex', 'autocut-hard-arg-cap']) ?? ''),
+        codexMaxConcurrentRequests: String(
+          readCompat(['codex', 'max-concurrent-requests']) ?? ''
+        ),
+        codexQuotaCircuitBreakerMinRemaining: String(
+          readCompat(['codex', 'quota-circuit-breaker-min-remaining']) ?? ''
+        ),
+        codexAutocompactEnabled: Boolean(readCompat(['codex', 'autocompact-enabled']) ?? true),
+        codexAutocompactThreshold: String(readCompat(['codex', 'autocompact-threshold']) ?? ''),
+        codexAutocompactKeepTokens: String(readCompat(['codex', 'autocompact-keep-tokens']) ?? ''),
+        codexAutocompactHardCapTokens: String(
+          readCompat(['codex', 'autocompact-hard-cap-tokens']) ?? ''
+        ),
+        codexAutocompactExternalModel:
+          typeof readCompat(['codex', 'autocompact-external-model']) === 'string'
+            ? (readCompat(['codex', 'autocompact-external-model']) as string)
+            : '',
+        codexAutocompactExternalModels:
+          typeof readCompat(['codex', 'autocompact-external-models']) === 'string'
+            ? (readCompat(['codex', 'autocompact-external-models']) as string)
+            : '',
+        codexCompactHijack: Boolean(readCompat(['codex', 'compact-hijack']) ?? true),
         devinSensitiveWords: parseStringList(readCompat(['devin', 'sensitive-words'])),
 
         quotaSwitchProject: Boolean(quotaExceeded?.['switch-project'] ?? false),
@@ -1849,6 +1950,67 @@ export function useVisualConfig(runtime: VisualConfigRuntime = {}) {
             deleteCompat(codexIdentityConfuseLegacyPath);
           }
           deleteCompatIfMapEmpty(['codex']);
+        }
+
+        if (isDirty('codexMeteringBypass')) {
+          setCompatValue(['codex', 'metering-bypass'], Boolean(values.codexMeteringBypass));
+        }
+        if (isDirty('codexAutocutFinalize')) {
+          setCompatValue(['codex', 'autocut-finalize'], Boolean(values.codexAutocutFinalize));
+        }
+        if (isDirty('codexAutocutReinforcement')) {
+          setCompatString(
+            ['codex', 'autocut-reinforcement'],
+            values.codexAutocutReinforcement || 'always'
+          );
+        }
+        if (isDirty('codexAutocutMaxToolChars')) {
+          setCompatInt(['codex', 'autocut-max-tool-chars'], values.codexAutocutMaxToolChars);
+        }
+        if (isDirty('codexAutocutHardArgCap')) {
+          setCompatInt(['codex', 'autocut-hard-arg-cap'], values.codexAutocutHardArgCap);
+        }
+        if (isDirty('codexMaxConcurrentRequests')) {
+          setCompatInt(['codex', 'max-concurrent-requests'], values.codexMaxConcurrentRequests);
+        }
+        if (isDirty('codexQuotaCircuitBreakerMinRemaining')) {
+          setCompatInt(
+            ['codex', 'quota-circuit-breaker-min-remaining'],
+            values.codexQuotaCircuitBreakerMinRemaining
+          );
+        }
+        if (isDirty('codexAutocompactEnabled')) {
+          setCompatValue(
+            ['codex', 'autocompact-enabled'],
+            Boolean(values.codexAutocompactEnabled)
+          );
+        }
+        if (isDirty('codexAutocompactThreshold')) {
+          setCompatInt(['codex', 'autocompact-threshold'], values.codexAutocompactThreshold);
+        }
+        if (isDirty('codexAutocompactKeepTokens')) {
+          setCompatInt(['codex', 'autocompact-keep-tokens'], values.codexAutocompactKeepTokens);
+        }
+        if (isDirty('codexAutocompactHardCapTokens')) {
+          setCompatInt(
+            ['codex', 'autocompact-hard-cap-tokens'],
+            values.codexAutocompactHardCapTokens
+          );
+        }
+        if (isDirty('codexAutocompactExternalModel')) {
+          setCompatString(
+            ['codex', 'autocompact-external-model'],
+            values.codexAutocompactExternalModel
+          );
+        }
+        if (isDirty('codexAutocompactExternalModels')) {
+          setCompatString(
+            ['codex', 'autocompact-external-models'],
+            values.codexAutocompactExternalModels
+          );
+        }
+        if (isDirty('codexCompactHijack')) {
+          setCompatValue(['codex', 'compact-hijack'], Boolean(values.codexCompactHijack));
         }
 
         if (isDirty('devinSensitiveWords')) {
