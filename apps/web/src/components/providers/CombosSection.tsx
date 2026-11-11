@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AutocompleteInput } from '@/components/ui/AutocompleteInput';
 import { Button } from '@/components/ui/Button';
@@ -33,6 +33,8 @@ interface ComboFormState {
   disabled: boolean;
 }
 
+const EMPTY_MODEL_NAMES: string[] = [];
+
 const buildEmptyComboForm = (): ComboFormState => ({
   name: '',
   strategy: 'fallback',
@@ -40,7 +42,11 @@ const buildEmptyComboForm = (): ComboFormState => ({
   disabled: false,
 });
 
-export function CombosSection({ disabled = false, allModelNames = [], files: propFiles }: CombosSectionProps) {
+export function CombosSection({
+  disabled = false,
+  allModelNames = EMPTY_MODEL_NAMES,
+  files: propFiles,
+}: CombosSectionProps) {
   const { t } = useTranslation();
   const { showNotification, showConfirmation } = useNotificationStore();
 
@@ -54,9 +60,25 @@ export function CombosSection({ disabled = false, allModelNames = [], files: pro
   const [discoveredModels, setDiscoveredModels] = useState<DiscoveredComboModel[]>([]);
   const [providerFilter, setProviderFilter] = useState<string>('all');
 
+  const propFilesRef = useRef(propFiles);
+  propFilesRef.current = propFiles;
+  const allModelNamesRef = useRef(allModelNames);
+  allModelNamesRef.current = allModelNames;
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  const filesFingerprint = useMemo(
+    () =>
+      (propFiles ?? [])
+        .map((f) => `${f.name}:${f.disabled ? 1 : 0}:${f.type ?? ''}:${f.provider ?? ''}`)
+        .join('|'),
+    [propFiles]
+  );
+  const modelNamesFingerprint = useMemo(() => allModelNames.join('|'), [allModelNames]);
+
   const loadDiscoveredModels = useCallback(async () => {
     try {
-      let authFiles = propFiles;
+      let authFiles = propFilesRef.current;
       if (!authFiles || authFiles.length === 0) {
         const res = await authFilesApi.list();
         authFiles = res.files || [];
@@ -89,7 +111,7 @@ export function CombosSection({ disabled = false, allModelNames = [], files: pro
               ? 'API Provider'
               : provider === 'alias'
                 ? 'OAuth Alias'
-                : getTypeLabel(t, provider),
+                : getTypeLabel(tRef.current, provider),
           displayName,
         });
       };
@@ -133,13 +155,13 @@ export function CombosSection({ disabled = false, allModelNames = [], files: pro
       ]);
 
       // 2. Include API-key provider models passed via props
-      allModelNames.forEach((name) => addModel(name, 'api-provider'));
+      allModelNamesRef.current.forEach((name) => addModel(name, 'api-provider'));
 
       setDiscoveredModels(collected);
     } catch {
       // Ignore discovery errors
     }
-  }, [allModelNames, propFiles, t]);
+  }, [filesFingerprint, modelNamesFingerprint]);
 
   const loadCombos = useCallback(async () => {
     setLoading(true);
@@ -155,8 +177,11 @@ export function CombosSection({ disabled = false, allModelNames = [], files: pro
 
   useEffect(() => {
     void loadCombos();
+  }, [loadCombos]);
+
+  useEffect(() => {
     void loadDiscoveredModels();
-  }, [loadCombos, loadDiscoveredModels]);
+  }, [loadDiscoveredModels]);
 
   const providerCounts = useMemo(() => {
     const counts = new Map<string, { label: string; count: number }>();
