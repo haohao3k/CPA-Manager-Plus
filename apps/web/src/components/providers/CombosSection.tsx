@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { AutocompleteInput } from '@/components/ui/AutocompleteInput';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -7,12 +8,22 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
-import { combosApi, type ComboConfig, type ComboStrategy } from '@/services/api';
+import { getTypeLabel, normalizeProviderKey } from '@/features/authFiles/constants';
+import { authFilesApi, combosApi, type ComboConfig, type ComboStrategy } from '@/services/api';
 import { useNotificationStore } from '@/stores';
+import type { AuthFileItem } from '@/types';
 
 interface CombosSectionProps {
   disabled?: boolean;
   allModelNames?: string[];
+  files?: AuthFileItem[];
+}
+
+interface DiscoveredComboModel {
+  id: string;
+  provider: string;
+  providerLabel: string;
+  displayName?: string;
 }
 
 interface ComboFormState {
@@ -29,7 +40,7 @@ const buildEmptyComboForm = (): ComboFormState => ({
   disabled: false,
 });
 
-export function CombosSection({ disabled = false, allModelNames = [] }: CombosSectionProps) {
+export function CombosSection({ disabled = false, allModelNames = [], files: propFiles }: CombosSectionProps) {
   const { t } = useTranslation();
   const { showNotification, showConfirmation } = useNotificationStore();
 
@@ -40,6 +51,95 @@ export function CombosSection({ disabled = false, allModelNames = [] }: CombosSe
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [form, setForm] = useState<ComboFormState>(buildEmptyComboForm);
   const [quickPickModel, setQuickPickModel] = useState('');
+  const [discoveredModels, setDiscoveredModels] = useState<DiscoveredComboModel[]>([]);
+  const [providerFilter, setProviderFilter] = useState<string>('all');
+
+  const loadDiscoveredModels = useCallback(async () => {
+    try {
+      let authFiles = propFiles;
+      if (!authFiles || authFiles.length === 0) {
+        const res = await authFilesApi.list();
+        authFiles = res.files || [];
+      }
+
+      const activeFiles = authFiles.filter((f) => !f.disabled);
+      const activeProviders = new Set<string>();
+      activeFiles.forEach((f) => {
+        const raw = String(f.type || f.provider || '').trim();
+        const key = normalizeProviderKey(raw);
+        if (key && key !== 'unknown' && key !== 'empty') {
+          activeProviders.add(key);
+        }
+      });
+
+      const collected: DiscoveredComboModel[] = [];
+      const seen = new Set<string>();
+
+      const addModel = (id: string, provider: string, displayName?: string) => {
+        const trimmed = id.trim();
+        if (!trimmed) return;
+        const dedupKey = `${provider}:${trimmed}`;
+        if (seen.has(dedupKey)) return;
+        seen.add(dedupKey);
+        collected.push({
+          id: trimmed,
+          provider,
+          providerLabel:
+            provider === 'api-provider'
+              ? 'API Provider'
+              : provider === 'alias'
+                ? 'OAuth Alias'
+                : getTypeLabel(t, provider),
+          displayName,
+        });
+      };
+
+      // 1. Load models per active auth file + static definitions per active OAuth provider
+      await Promise.allSettled([
+        ...activeFiles.map(async (file) => {
+          const provider = normalizeProviderKey(String(file.type || file.provider || ''));
+          if (!provider) return;
+          try {
+            const fileModels = await authFilesApi.getModelsForAuthFile(file.name);
+            fileModels.forEach((m) => addModel(m.id, provider, m.display_name));
+          } catch {
+            // Fallback to provider model definitions below
+          }
+        }),
+        ...Array.from(activeProviders).map(async (provider) => {
+          const channel = provider === 'gemini-cli' ? 'gemini' : provider;
+          try {
+            const defs = await authFilesApi.getModelDefinitions(channel);
+            defs.forEach((m) => addModel(m.id, provider, m.display_name));
+          } catch {
+            // Ignore unsupported static definition channels
+          }
+        }),
+        (async () => {
+          try {
+            const aliasMap = await authFilesApi.getOauthModelAlias();
+            Object.entries(aliasMap || {}).forEach(([prov, entries]) => {
+              const normProv = normalizeProviderKey(prov) || 'alias';
+              (entries || []).forEach((entry) => {
+                if (entry.alias) {
+                  addModel(entry.alias, normProv, `${entry.alias} -> ${entry.name}`);
+                }
+              });
+            });
+          } catch {
+            // Ignore if alias endpoint is unavailable
+          }
+        })(),
+      ]);
+
+      // 2. Include API-key provider models passed via props
+      allModelNames.forEach((name) => addModel(name, 'api-provider'));
+
+      setDiscoveredModels(collected);
+    } catch {
+      // Ignore discovery errors
+    }
+  }, [allModelNames, propFiles, t]);
 
   const loadCombos = useCallback(async () => {
     setLoading(true);
@@ -55,7 +155,58 @@ export function CombosSection({ disabled = false, allModelNames = [] }: CombosSe
 
   useEffect(() => {
     void loadCombos();
-  }, [loadCombos]);
+    void loadDiscoveredModels();
+  }, [loadCombos, loadDiscoveredModels]);
+
+  const providerCounts = useMemo(() => {
+    const counts = new Map<string, { label: string; count: number }>();
+    discoveredModels.forEach((m) => {
+      const cur = counts.get(m.provider);
+      if (cur) {
+        cur.count += 1;
+      } else {
+        counts.set(m.provider, { label: m.providerLabel, count: 1 });
+      }
+    });
+    return Array.from(counts.entries()).map(([provider, info]) => ({
+      provider,
+      label: info.label,
+      count: info.count,
+    }));
+  }, [discoveredModels]);
+
+  const filteredCatalogModels = useMemo(() => {
+    if (providerFilter === 'all') return discoveredModels;
+    return discoveredModels.filter((m) => m.provider === providerFilter);
+  }, [discoveredModels, providerFilter]);
+
+  const autocompleteOptions = useMemo(() => {
+    const uniqueById = new Map<string, { value: string; label?: string }>();
+    discoveredModels.forEach((m) => {
+      const existing = uniqueById.get(m.id);
+      const tag = m.displayName && m.displayName !== m.id ? `${m.providerLabel} · ${m.displayName}` : m.providerLabel;
+      if (!existing) {
+        uniqueById.set(m.id, { value: m.id, label: tag });
+      } else if (existing.label && !existing.label.includes(m.providerLabel)) {
+        existing.label = `${existing.label} / ${m.providerLabel}`;
+      }
+    });
+    return Array.from(uniqueById.values());
+  }, [discoveredModels]);
+
+  const quickPickModelToForm = useCallback((modelId: string) => {
+    if (!modelId) return;
+    setForm((prev) => {
+      const emptyIdx = prev.models.findIndex((m) => !m.trim());
+      if (emptyIdx >= 0) {
+        return {
+          ...prev,
+          models: prev.models.map((item, i) => (i === emptyIdx ? modelId : item)),
+        };
+      }
+      return { ...prev, models: [...prev.models, modelId] };
+    });
+  }, []);
 
   const openAddModal = () => {
     setEditingIndex(null);
@@ -227,7 +378,10 @@ export function CombosSection({ disabled = false, allModelNames = [] }: CombosSe
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => void loadCombos()}
+            onClick={() => {
+              void loadCombos();
+              void loadDiscoveredModels();
+            }}
             disabled={disabled || loading || saving}
           >
             {t('common.refresh', { defaultValue: 'Refresh' })}
@@ -241,9 +395,40 @@ export function CombosSection({ disabled = false, allModelNames = [] }: CombosSe
       <div className="hint" style={{ marginBottom: 12 }}>
         {t('ai_providers.combos_hint', {
           defaultValue:
-            'Combos define virtual model names that route across an ordered list of models using Fallback (failover on quota/5xx errors) or Round-Robin load balancing.',
+            'Combos define virtual model names that route across an ordered list of models from your OAuth accounts (Cursor, Mistral, Z.AI GLM, OpenCode Go, Codex, Claude...) or API keys using Fallback (automatic failover on quota/429/5xx errors) or Round-Robin load balancing.',
         })}
       </div>
+
+      {providerCounts.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 8,
+            alignItems: 'center',
+            marginBottom: 14,
+            padding: '8px 12px',
+            borderRadius: 8,
+            background: 'var(--bg-secondary, rgba(128,128,128,0.08))',
+            fontSize: 12,
+          }}
+        >
+          <span style={{ opacity: 0.75, fontWeight: 500 }}>
+            {t('ai_providers.combos_detected_sources', {
+              defaultValue: 'Detected OAuth & Provider Models:',
+            })}
+          </span>
+          {providerCounts.map((item) => (
+            <span
+              key={item.provider}
+              className="status-badge muted"
+              style={{ fontSize: 11, padding: '2px 8px' }}
+            >
+              {item.label}: {item.count}
+            </span>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="hint">{t('common.loading')}</div>
@@ -413,35 +598,140 @@ export function CombosSection({ disabled = false, allModelNames = [] }: CombosSe
                 onClick={() => handleAddModelSlot('')}
                 disabled={saving}
               >
-                + {t('ai_providers.combos_add_model_slot', { defaultValue: 'Add Model' })}
+                + {t('ai_providers.combos_add_model_slot', { defaultValue: 'Add Model Slot' })}
               </Button>
             </div>
 
-            {allModelNames.length > 0 && (
-              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <Select
-                  value={quickPickModel}
-                  options={allModelNames.map((m) => ({ value: m, label: m }))}
-                  placeholder={t('ai_providers.combos_quick_pick_placeholder', {
-                    defaultValue: 'Quick-add from configured models...',
-                  })}
-                  onChange={(value) => {
-                    if (!value) return;
-                    setQuickPickModel('');
-                    setForm((prev) => {
-                      const emptyIdx = prev.models.findIndex((m) => !m.trim());
-                      if (emptyIdx >= 0) {
-                        return {
-                          ...prev,
-                          models: prev.models.map((item, i) => (i === emptyIdx ? value : item)),
-                        };
-                      }
-                      return { ...prev, models: [...prev.models, value] };
-                    });
+            {discoveredModels.length > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  marginBottom: 12,
+                  padding: 10,
+                  borderRadius: 8,
+                  border: '1px solid var(--border-color, rgba(128,128,128,0.2))',
+                  background: 'var(--bg-secondary, rgba(128,128,128,0.06))',
+                }}
+              >
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, opacity: 0.75, marginRight: 4 }}>
+                    {t('ai_providers.combos_filter_provider', {
+                      defaultValue: 'Pick from OAuth / Providers:',
+                    })}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setProviderFilter('all')}
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: 999,
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      border: '1px solid var(--border-color, rgba(128,128,128,0.3))',
+                      background:
+                        providerFilter === 'all'
+                          ? 'var(--primary-color, #2563eb)'
+                          : 'transparent',
+                      color: providerFilter === 'all' ? '#fff' : 'inherit',
+                    }}
+                  >
+                    All ({discoveredModels.length})
+                  </button>
+                  {providerCounts.map((item) => (
+                    <button
+                      key={item.provider}
+                      type="button"
+                      onClick={() => setProviderFilter(item.provider)}
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: 999,
+                        fontSize: 11,
+                        cursor: 'pointer',
+                        border: '1px solid var(--border-color, rgba(128,128,128,0.3))',
+                        background:
+                          providerFilter === item.provider
+                            ? 'var(--primary-color, #2563eb)'
+                            : 'transparent',
+                        color: providerFilter === item.provider ? '#fff' : 'inherit',
+                      }}
+                    >
+                      {item.label} ({item.count})
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Select
+                    value={quickPickModel}
+                    options={filteredCatalogModels.map((m) => ({
+                      value: m.id,
+                      label: `[${m.providerLabel}] ${m.id}${
+                        m.displayName && m.displayName !== m.id ? ` (${m.displayName})` : ''
+                      }`,
+                    }))}
+                    placeholder={t('ai_providers.combos_quick_pick_placeholder', {
+                      defaultValue: 'Quick-add model from connected OAuth / Providers...',
+                    })}
+                    onChange={(value) => {
+                      if (!value) return;
+                      setQuickPickModel('');
+                      quickPickModelToForm(value);
+                    }}
+                    disabled={saving}
+                    ariaLabel="Quick pick model"
+                  />
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: 6,
+                    maxHeight: 132,
+                    overflowY: 'auto',
+                    paddingTop: 2,
                   }}
-                  disabled={saving}
-                  ariaLabel="Quick pick model"
-                />
+                >
+                  {filteredCatalogModels.map((m) => {
+                    const alreadyInCombo = form.models.some(
+                      (item) => item.trim().toLowerCase() === m.id.toLowerCase()
+                    );
+                    return (
+                      <button
+                        key={`${m.provider}:${m.id}`}
+                        type="button"
+                        onClick={() => quickPickModelToForm(m.id)}
+                        disabled={saving}
+                        title={`Add ${m.id} (${m.providerLabel})`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          cursor: 'pointer',
+                          border: alreadyInCombo
+                            ? '1px solid var(--primary-color, #2563eb)'
+                            : '1px solid var(--border-color, rgba(128,128,128,0.25))',
+                          background: alreadyInCombo
+                            ? 'rgba(37, 99, 235, 0.14)'
+                            : 'var(--bg-primary, rgba(255,255,255,0.04))',
+                          color: 'inherit',
+                        }}
+                      >
+                        <span style={{ opacity: 0.6, fontFamily: 'sans-serif' }}>
+                          [{m.providerLabel}]
+                        </span>
+                        <span>{m.id}</span>
+                        <span style={{ opacity: 0.7 }}>+</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -451,14 +741,13 @@ export function CombosSection({ disabled = false, allModelNames = [] }: CombosSe
                   <span style={{ width: 22, fontSize: 12, opacity: 0.65, textAlign: 'right' }}>
                     {idx + 1}.
                   </span>
-                  <input
-                    type="text"
-                    className="input"
-                    style={{ flex: 1 }}
-                    placeholder="model-name (e.g. glm-4.7, mistral-large-latest)"
+                  <AutocompleteInput
+                    wrapperStyle={{ flex: 1, marginBottom: 0 }}
+                    placeholder="model-name (e.g. cursor-claude-sonnet-4-5, mistral-large-latest, glm-5.3)"
                     value={model}
-                    onChange={(e) => handleModelChange(idx, e.target.value)}
+                    onChange={(value) => handleModelChange(idx, value)}
                     disabled={saving}
+                    options={autocompleteOptions}
                   />
                   <Button
                     variant="ghost"

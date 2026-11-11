@@ -28,7 +28,7 @@ export function useAccountsWorkspaceRefresh(
       await currentHandlers.refreshHealth();
       return;
     }
-    if (activeView === 'oauth') {
+    if (activeView === 'oauth' || activeView === 'combos') {
       await currentHandlers.refreshOauth();
       return;
     }

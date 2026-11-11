@@ -55,15 +55,21 @@ type OAuthEditorBaseProps = {
 };
 
 const OAUTH_PROVIDER_PRESETS = [
+  'cursor',
+  'mistral',
+  'zai',
+  'opencode',
+  'codex',
+  'claude',
+  'antigravity',
   'vertex',
   'aistudio',
-  'antigravity',
-  'claude',
-  'codex',
   'xai',
   'qwen',
   'kimi',
   'iflow',
+  'devin',
+  'meta',
 ];
 
 const OAUTH_PROVIDER_EXCLUDES = new Set(['all', 'unknown', 'empty']);
@@ -116,14 +122,14 @@ function useProviderOptions({
 }) {
   return useMemo(() => {
     const extraProviders = new Set<string>();
-    Object.keys(excluded).forEach((value) => extraProviders.add(value));
-    Object.keys(modelAlias).forEach((value) => extraProviders.add(value));
+    Object.keys(excluded).forEach((value) => extraProviders.add(normalizeProviderKey(value)));
+    Object.keys(modelAlias).forEach((value) => extraProviders.add(normalizeProviderKey(value)));
     files.forEach((file) => {
       if (typeof file.type === 'string') {
-        extraProviders.add(file.type);
+        extraProviders.add(normalizeProviderKey(file.type));
       }
       if (typeof file.provider === 'string') {
-        extraProviders.add(file.provider);
+        extraProviders.add(normalizeProviderKey(file.provider));
       }
     });
 

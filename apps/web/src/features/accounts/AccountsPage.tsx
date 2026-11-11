@@ -19,6 +19,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
 import { SegmentedTabs, type SegmentedTabItem } from '@/components/ui/SegmentedTabs';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
+import { CombosSection } from '@/components/providers';
 import {
   IconCheck,
   IconBinary,
@@ -8097,6 +8098,10 @@ export function AccountsPage() {
         badge: metrics.needsInspectionAction,
       },
       { id: 'oauth', label: t('accounts.tab_oauth') },
+      {
+        id: 'combos',
+        label: t('accounts.tab_combos', { defaultValue: 'Combos & Fallback' }),
+      },
     ];
     return (
       <SegmentedTabs
@@ -10547,6 +10552,7 @@ export function AccountsPage() {
           onRenameAlias={oauthState.handleRenameAlias}
           onDeleteAlias={oauthState.handleDeleteAlias}
         />
+        <CombosSection disabled={disableControls} files={files} />
       </div>
       <aside className={styles.rulePanel}>
         <div className={styles.previewPanelHeader}>
@@ -10665,6 +10671,13 @@ export function AccountsPage() {
   const renderActiveView = () => {
     if (activeView === 'health') return renderHealthView();
     if (activeView === 'oauth') return renderOAuthView();
+    if (activeView === 'combos') {
+      return (
+        <section style={{ marginTop: 12 }}>
+          <CombosSection disabled={disableControls} files={files} />
+        </section>
+      );
+    }
     return renderAccountsOverview();
   };
 

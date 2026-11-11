@@ -23,7 +23,7 @@ import { parseQuotaResetLabelMs } from '@/utils/quota/formatters';
 import { formatUsd } from '@/utils/usage';
 import { getEffectiveAccountInspectionAction } from './accountCredentialEvidence';
 
-export type AccountsView = 'accounts' | 'health' | 'oauth';
+export type AccountsView = 'accounts' | 'health' | 'oauth' | 'combos';
 export type DetailTab = 'overview' | 'quota' | 'config' | 'models' | 'diagnostics';
 export type SortableAccountColumn = Extract<
   AccountRowSortKey,

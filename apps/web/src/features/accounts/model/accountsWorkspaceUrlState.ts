@@ -14,7 +14,7 @@ export interface AccountsWorkspaceUrlState extends AccountsWorkspaceUiState {
   editorProvider: string;
 }
 
-const VIEW_SET = new Set<AccountsView>(['accounts', 'health', 'oauth']);
+const VIEW_SET = new Set<AccountsView>(['accounts', 'health', 'oauth', 'combos']);
 const HEALTH_MODE_SET = new Set<CredentialHealthInspectionMode>(['local', 'server']);
 const DETAIL_TAB_SET = new Set<DetailTab>(['overview', 'quota', 'config', 'models', 'diagnostics']);
 const STATUS_FILTER_SET: ReadonlySet<AccountsWorkspaceUiState['statusFilter']> = new Set(

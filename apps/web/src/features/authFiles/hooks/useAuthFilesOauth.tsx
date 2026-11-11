@@ -155,17 +155,17 @@ export function useAuthFilesOauth(options: UseAuthFilesOauthOptions): UseAuthFil
     const providers = new Set<string>();
 
     Object.keys(scopedModelAlias).forEach((provider) => {
-      const key = provider.trim().toLowerCase();
+      const key = normalizeProviderKey(provider);
       if (key) providers.add(key);
     });
 
     files.forEach((file) => {
       if (typeof file.type === 'string') {
-        const key = file.type.trim().toLowerCase();
+        const key = normalizeProviderKey(file.type);
         if (key) providers.add(key);
       }
       if (typeof file.provider === 'string') {
-        const key = file.provider.trim().toLowerCase();
+        const key = normalizeProviderKey(file.provider);
         if (key) providers.add(key);
       }
     });
