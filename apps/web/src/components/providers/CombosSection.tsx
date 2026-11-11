@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AutocompleteInput } from '@/components/ui/AutocompleteInput';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -56,9 +55,8 @@ export function CombosSection({
   const [modalOpen, setModalOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [form, setForm] = useState<ComboFormState>(buildEmptyComboForm);
-  const [quickPickModel, setQuickPickModel] = useState('');
+  const [rowProviders, setRowProviders] = useState<string[]>(['all']);
   const [discoveredModels, setDiscoveredModels] = useState<DiscoveredComboModel[]>([]);
-  const [providerFilter, setProviderFilter] = useState<string>('all');
 
   const propFilesRef = useRef(propFiles);
   propFilesRef.current = propFiles;
@@ -200,57 +198,155 @@ export function CombosSection({
     }));
   }, [discoveredModels]);
 
-  const filteredCatalogModels = useMemo(() => {
-    if (providerFilter === 'all') return discoveredModels;
-    return discoveredModels.filter((m) => m.provider === providerFilter);
-  }, [discoveredModels, providerFilter]);
-
-  const autocompleteOptions = useMemo(() => {
-    const uniqueById = new Map<string, { value: string; label?: string }>();
-    discoveredModels.forEach((m) => {
-      const existing = uniqueById.get(m.id);
-      const tag = m.displayName && m.displayName !== m.id ? `${m.providerLabel} · ${m.displayName}` : m.providerLabel;
-      if (!existing) {
-        uniqueById.set(m.id, { value: m.id, label: tag });
-      } else if (existing.label && !existing.label.includes(m.providerLabel)) {
-        existing.label = `${existing.label} / ${m.providerLabel}`;
+  const inferProviderForModel = useCallback(
+    (modelValue: string): string => {
+      const trimmed = modelValue.trim();
+      if (!trimmed) return 'all';
+      if (trimmed.includes('/')) {
+        const prefix = normalizeProviderKey(trimmed.split('/')[0]);
+        if (prefix && discoveredModels.some((m) => m.provider === prefix)) {
+          return prefix;
+        }
       }
-    });
-    return Array.from(uniqueById.values());
-  }, [discoveredModels]);
-
-  const quickPickModelToForm = useCallback((modelId: string) => {
-    if (!modelId) return;
-    setForm((prev) => {
-      const emptyIdx = prev.models.findIndex((m) => !m.trim());
-      if (emptyIdx >= 0) {
-        return {
-          ...prev,
-          models: prev.models.map((item, i) => (i === emptyIdx ? modelId : item)),
-        };
+      const matches = discoveredModels.filter(
+        (m) => m.id.toLowerCase() === trimmed.toLowerCase()
+      );
+      if (matches.length === 1) {
+        return matches[0].provider;
       }
-      return { ...prev, models: [...prev.models, modelId] };
-    });
-  }, []);
+      if (matches.length > 1) {
+        return 'all';
+      }
+      return discoveredModels.length > 0 ? 'custom' : 'all';
+    },
+    [discoveredModels]
+  );
+
+  const buildModelOptionsForProvider = useCallback(
+    (selectedProvider: string, currentValue: string) => {
+      const opts: { value: string; label: string }[] = [];
+      const seenValues = new Set<string>();
+
+      const pushOption = (value: string, label: string) => {
+        if (!value || seenValues.has(value)) return;
+        seenValues.add(value);
+        opts.push({ value, label });
+      };
+
+      if (selectedProvider === 'all') {
+        const byId = new Map<
+          string,
+          { id: string; providers: string[]; providerKeys: string[]; displayName?: string }
+        >();
+        discoveredModels.forEach((m) => {
+          const cur = byId.get(m.id);
+          if (!cur) {
+            byId.set(m.id, {
+              id: m.id,
+              providers: [m.providerLabel],
+              providerKeys: [m.provider],
+              displayName: m.displayName,
+            });
+          } else {
+            if (!cur.providers.includes(m.providerLabel)) {
+              cur.providers.push(m.providerLabel);
+            }
+            if (!cur.providerKeys.includes(m.provider)) {
+              cur.providerKeys.push(m.provider);
+            }
+          }
+        });
+
+        byId.forEach((entry) => {
+          const provTag = entry.providers.join(' / ');
+          const nameTag =
+            entry.displayName && entry.displayName !== entry.id ? ` — ${entry.displayName}` : '';
+          pushOption(entry.id, `[${provTag}] ${entry.id}${nameTag}`);
+          if (entry.providerKeys.length > 1) {
+            entry.providerKeys.forEach((provKey, idx) => {
+              const provLabel = entry.providers[idx] || provKey;
+              pushOption(
+                `${provKey}/${entry.id}`,
+                `[${provLabel} only] ${provKey}/${entry.id}${nameTag}`
+              );
+            });
+          }
+        });
+      } else {
+        const multiProviderIds = new Set<string>();
+        const idCount = new Map<string, number>();
+        discoveredModels.forEach((m) => {
+          idCount.set(m.id, (idCount.get(m.id) || 0) + 1);
+        });
+        idCount.forEach((count, id) => {
+          if (count > 1) multiProviderIds.add(id);
+        });
+
+        discoveredModels
+          .filter((m) => m.provider === selectedProvider)
+          .forEach((m) => {
+            const nameTag = m.displayName && m.displayName !== m.id ? ` — ${m.displayName}` : '';
+            pushOption(m.id, `${m.id}${nameTag}`);
+            if (multiProviderIds.has(m.id)) {
+              pushOption(
+                `${m.provider}/${m.id}`,
+                `${m.provider}/${m.id} (Pin to ${m.providerLabel})`
+              );
+            }
+          });
+      }
+
+      const trimmedCurrent = currentValue.trim();
+      if (trimmedCurrent && !seenValues.has(trimmedCurrent)) {
+        pushOption(trimmedCurrent, `${trimmedCurrent} (Current)`);
+      }
+
+      return opts;
+    },
+    [discoveredModels]
+  );
+
+  const quickPickModelToForm = useCallback(
+    (modelId: string) => {
+      if (!modelId) return;
+      const inferredProv = inferProviderForModel(modelId);
+      setForm((prev) => {
+        const emptyIdx = prev.models.findIndex((m) => !m.trim());
+        if (emptyIdx >= 0) {
+          setRowProviders((prevProvs) =>
+            prevProvs.map((p, i) => (i === emptyIdx ? inferredProv : p))
+          );
+          return {
+            ...prev,
+            models: prev.models.map((item, i) => (i === emptyIdx ? modelId : item)),
+          };
+        }
+        setRowProviders((prevProvs) => [...prevProvs, inferredProv]);
+        return { ...prev, models: [...prev.models, modelId] };
+      });
+    },
+    [inferProviderForModel]
+  );
 
   const openAddModal = () => {
     setEditingIndex(null);
     setForm(buildEmptyComboForm());
-    setQuickPickModel('');
+    setRowProviders(['all']);
     setModalOpen(true);
   };
 
   const openEditModal = (index: number) => {
     const target = combos[index];
     if (!target) return;
+    const nextModels = target.models.length ? [...target.models] : [''];
     setEditingIndex(index);
     setForm({
       name: target.name,
       strategy: target.strategy,
-      models: target.models.length ? [...target.models] : [''],
+      models: nextModels,
       disabled: Boolean(target.disabled),
     });
-    setQuickPickModel('');
+    setRowProviders(nextModels.map((m) => inferProviderForModel(m)));
     setModalOpen(true);
   };
 
@@ -267,11 +363,29 @@ export function CombosSection({
     }));
   };
 
+  const handleRowProviderChange = (idx: number, provider: string) => {
+    setRowProviders((prev) => prev.map((p, i) => (i === idx ? provider : p)));
+    if (provider !== 'all' && provider !== 'custom') {
+      const currentModel = (form.models[idx] || '').trim();
+      const providerModels = discoveredModels.filter((m) => m.provider === provider);
+      const validForProvider = providerModels.some(
+        (m) => m.id === currentModel || `${m.provider}/${m.id}` === currentModel
+      );
+      if (!validForProvider && providerModels.length > 0) {
+        handleModelChange(idx, providerModels[0].id);
+      }
+    }
+  };
+
   const handleAddModelSlot = (initialValue = '') => {
     setForm((prev) => ({
       ...prev,
       models: [...prev.models, initialValue],
     }));
+    setRowProviders((prev) => [
+      ...prev,
+      initialValue ? inferProviderForModel(initialValue) : 'all',
+    ]);
   };
 
   const handleRemoveModelSlot = (idx: number) => {
@@ -281,6 +395,10 @@ export function CombosSection({
         ...prev,
         models: next.length ? next : [''],
       };
+    });
+    setRowProviders((prev) => {
+      const next = prev.filter((_, i) => i !== idx);
+      return next.length ? next : ['all'];
     });
   };
 
@@ -293,6 +411,15 @@ export function CombosSection({
       next[idx] = next[targetIdx];
       next[targetIdx] = temp;
       return { ...prev, models: next };
+    });
+    setRowProviders((prev) => {
+      const targetIdx = idx + direction;
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const next = [...prev];
+      const temp = next[idx];
+      next[idx] = next[targetIdx];
+      next[targetIdx] = temp;
+      return next;
     });
   };
 
@@ -613,195 +740,188 @@ export function CombosSection({
           </div>
 
           <div className="form-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <label style={{ margin: 0 }}>
                 {t('ai_providers.combos_models_label', { defaultValue: 'Target Models (in order)' })}
               </label>
+              <span style={{ fontSize: 12, opacity: 0.65 }}>
+                {form.strategy === 'round-robin'
+                  ? 'Requests rotate evenly across these models'
+                  : 'Tries #1 first, automatically fails over to #2, #3...'}
+              </span>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 6,
+                alignItems: 'center',
+                marginBottom: 10,
+                padding: '7px 10px',
+                borderRadius: 8,
+                background: 'var(--bg-secondary, rgba(128,128,128,0.06))',
+                border: '1px solid var(--border-color, rgba(128,128,128,0.18))',
+              }}
+            >
+              <span style={{ fontSize: 11, opacity: 0.7, marginRight: 2 }}>Quick Add:</span>
+              {['deepseek-v4.1-flash', 'glm-5.3-flash', 'zai/glm-5.3-flash', 'opencode/glm-5.3-flash', 'zai-glm-5-3-flash'].map(
+                (preset) => {
+                  const active = form.models.some(
+                    (m) => m.trim().toLowerCase() === preset.toLowerCase()
+                  );
+                  return (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => quickPickModelToForm(preset)}
+                      disabled={saving}
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontFamily: 'monospace',
+                        cursor: 'pointer',
+                        border: active
+                          ? '1px solid var(--primary-color, #2563eb)'
+                          : '1px solid var(--border-color, rgba(128,128,128,0.28))',
+                        background: active
+                          ? 'rgba(37, 99, 235, 0.14)'
+                          : 'var(--bg-primary, rgba(255,255,255,0.04))',
+                        color: 'inherit',
+                      }}
+                    >
+                      + {preset}
+                    </button>
+                  );
+                }
+              )}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {form.models.map((model, idx) => {
+                const rowProvider = rowProviders[idx] || 'all';
+                const providerSelectOptions = [
+                  { value: 'all', label: `All Providers (${discoveredModels.length})` },
+                  ...providerCounts.map((item) => ({
+                    value: item.provider,
+                    label: `${item.label} (${item.count})`,
+                  })),
+                  { value: 'custom', label: 'Custom (Type ID)' },
+                ];
+                const modelSelectOptions = buildModelOptionsForProvider(rowProvider, model);
+                const isCustomInput = rowProvider === 'custom' || discoveredModels.length === 0;
+
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'center',
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: '1px solid var(--border-color, rgba(128,128,128,0.22))',
+                      background: 'var(--bg-secondary, rgba(128,128,128,0.04))',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 22,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        opacity: 0.75,
+                        textAlign: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      #{idx + 1}
+                    </span>
+
+                    <div style={{ width: 175, flexShrink: 0 }}>
+                      <Select
+                        value={rowProvider}
+                        options={providerSelectOptions}
+                        onChange={(val) => handleRowProviderChange(idx, val)}
+                        disabled={saving}
+                        ariaLabel={`Row ${idx + 1} Provider`}
+                      />
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {isCustomInput ? (
+                        <input
+                          className="input"
+                          style={{ width: '100%', margin: 0, fontFamily: 'monospace', fontSize: 13 }}
+                          placeholder="e.g. deepseek-v4.1-flash, glm-5.3-flash, zai/glm-5.3-flash"
+                          value={model}
+                          onChange={(e) => handleModelChange(idx, e.target.value)}
+                          disabled={saving}
+                        />
+                      ) : (
+                        <Select
+                          value={model}
+                          options={modelSelectOptions}
+                          placeholder="Select a model..."
+                          onChange={(val) => handleModelChange(idx, val)}
+                          disabled={saving}
+                          ariaLabel={`Row ${idx + 1} Model`}
+                        />
+                      )}
+                    </div>
+
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() =>
+                        handleRowProviderChange(idx, isCustomInput ? 'all' : 'custom')
+                      }
+                      disabled={saving}
+                      title={isCustomInput ? 'Switch to model dropdown' : 'Type custom model ID'}
+                    >
+                      {isCustomInput ? '☰' : '✎'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => handleMoveModelSlot(idx, -1)}
+                      disabled={saving || idx === 0}
+                      title="Move up"
+                    >
+                      ↑
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => handleMoveModelSlot(idx, 1)}
+                      disabled={saving || idx === form.models.length - 1}
+                      title="Move down"
+                    >
+                      ↓
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => handleRemoveModelSlot(idx)}
+                      disabled={saving || form.models.length <= 1}
+                      title="Remove model"
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ marginTop: 10 }}>
               <Button
                 variant="secondary"
-                size="xs"
+                size="sm"
                 onClick={() => handleAddModelSlot('')}
                 disabled={saving}
               >
-                + {t('ai_providers.combos_add_model_slot', { defaultValue: 'Add Model Slot' })}
+                + {t('ai_providers.combos_add_model_slot', { defaultValue: 'Add Another Model to Chain' })}
               </Button>
-            </div>
-
-            {discoveredModels.length > 0 && (
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                  marginBottom: 12,
-                  padding: 10,
-                  borderRadius: 8,
-                  border: '1px solid var(--border-color, rgba(128,128,128,0.2))',
-                  background: 'var(--bg-secondary, rgba(128,128,128,0.06))',
-                }}
-              >
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-                  <span style={{ fontSize: 12, opacity: 0.75, marginRight: 4 }}>
-                    {t('ai_providers.combos_filter_provider', {
-                      defaultValue: 'Pick from OAuth / Providers:',
-                    })}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setProviderFilter('all')}
-                    style={{
-                      padding: '2px 8px',
-                      borderRadius: 999,
-                      fontSize: 11,
-                      cursor: 'pointer',
-                      border: '1px solid var(--border-color, rgba(128,128,128,0.3))',
-                      background:
-                        providerFilter === 'all'
-                          ? 'var(--primary-color, #2563eb)'
-                          : 'transparent',
-                      color: providerFilter === 'all' ? '#fff' : 'inherit',
-                    }}
-                  >
-                    All ({discoveredModels.length})
-                  </button>
-                  {providerCounts.map((item) => (
-                    <button
-                      key={item.provider}
-                      type="button"
-                      onClick={() => setProviderFilter(item.provider)}
-                      style={{
-                        padding: '2px 8px',
-                        borderRadius: 999,
-                        fontSize: 11,
-                        cursor: 'pointer',
-                        border: '1px solid var(--border-color, rgba(128,128,128,0.3))',
-                        background:
-                          providerFilter === item.provider
-                            ? 'var(--primary-color, #2563eb)'
-                            : 'transparent',
-                        color: providerFilter === item.provider ? '#fff' : 'inherit',
-                      }}
-                    >
-                      {item.label} ({item.count})
-                    </button>
-                  ))}
-                </div>
-
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <Select
-                    value={quickPickModel}
-                    options={filteredCatalogModels.map((m) => ({
-                      value: m.id,
-                      label: `[${m.providerLabel}] ${m.id}${
-                        m.displayName && m.displayName !== m.id ? ` (${m.displayName})` : ''
-                      }`,
-                    }))}
-                    placeholder={t('ai_providers.combos_quick_pick_placeholder', {
-                      defaultValue: 'Quick-add model from connected OAuth / Providers...',
-                    })}
-                    onChange={(value) => {
-                      if (!value) return;
-                      setQuickPickModel('');
-                      quickPickModelToForm(value);
-                    }}
-                    disabled={saving}
-                    ariaLabel="Quick pick model"
-                  />
-                </div>
-
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: 6,
-                    maxHeight: 132,
-                    overflowY: 'auto',
-                    paddingTop: 2,
-                  }}
-                >
-                  {filteredCatalogModels.map((m) => {
-                    const alreadyInCombo = form.models.some(
-                      (item) => item.trim().toLowerCase() === m.id.toLowerCase()
-                    );
-                    return (
-                      <button
-                        key={`${m.provider}:${m.id}`}
-                        type="button"
-                        onClick={() => quickPickModelToForm(m.id)}
-                        disabled={saving}
-                        title={`Add ${m.id} (${m.providerLabel})`}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          padding: '3px 8px',
-                          borderRadius: 6,
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          cursor: 'pointer',
-                          border: alreadyInCombo
-                            ? '1px solid var(--primary-color, #2563eb)'
-                            : '1px solid var(--border-color, rgba(128,128,128,0.25))',
-                          background: alreadyInCombo
-                            ? 'rgba(37, 99, 235, 0.14)'
-                            : 'var(--bg-primary, rgba(255,255,255,0.04))',
-                          color: 'inherit',
-                        }}
-                      >
-                        <span style={{ opacity: 0.6, fontFamily: 'sans-serif' }}>
-                          [{m.providerLabel}]
-                        </span>
-                        <span>{m.id}</span>
-                        <span style={{ opacity: 0.7 }}>+</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {form.models.map((model, idx) => (
-                <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <span style={{ width: 22, fontSize: 12, opacity: 0.65, textAlign: 'right' }}>
-                    {idx + 1}.
-                  </span>
-                  <AutocompleteInput
-                    wrapperStyle={{ flex: 1, marginBottom: 0 }}
-                    placeholder="model-name (e.g. cursor-claude-sonnet-4-5, mistral-large-latest, glm-5.3)"
-                    value={model}
-                    onChange={(value) => handleModelChange(idx, value)}
-                    disabled={saving}
-                    options={autocompleteOptions}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => handleMoveModelSlot(idx, -1)}
-                    disabled={saving || idx === 0}
-                    title="Move up"
-                  >
-                    ↑
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => handleMoveModelSlot(idx, 1)}
-                    disabled={saving || idx === form.models.length - 1}
-                    title="Move down"
-                  >
-                    ↓
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={() => handleRemoveModelSlot(idx)}
-                    disabled={saving || form.models.length <= 1}
-                  >
-                    ✕
-                  </Button>
-                </div>
-              ))}
             </div>
           </div>
 
