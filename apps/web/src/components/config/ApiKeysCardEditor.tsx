@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link, useInRouterContext } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { usageServiceApi, type ApiKeyAlias } from '@/services/api/usageService';
@@ -30,6 +31,21 @@ type OrphanAliasConflict = {
   apiKeyHash: string;
   alias: string;
 };
+
+/** Opens the key's model access settings; the URL carries the key hash, never the key. */
+function ApiKeyAccessLink({ apiKeyHash }: { apiKeyHash: string }) {
+  const { t } = useTranslation();
+  const inRouter = useInRouterContext();
+  if (!inRouter || !apiKeyHash) return null;
+  return (
+    <Link
+      className="btn btn-secondary btn-xs"
+      to={`/models?tab=access&key=${encodeURIComponent(apiKeyHash)}`}
+    >
+      <span>{t('config_management.visual.api_keys.access_action')}</span>
+    </Link>
+  );
+}
 
 export const ApiKeysCardEditor = memo(function ApiKeysCardEditor({
   value,
@@ -796,6 +812,7 @@ export const ApiKeysCardEditor = memo(function ApiKeysCardEditor({
                   <div className="item-subtitle">{maskApiKey(String(key || ''))}</div>
                 </div>
                 <div className="item-actions">
+                  <ApiKeyAccessLink apiKeyHash={apiKeyHash} />
                   <Button
                     variant="secondary"
                     size="xs"

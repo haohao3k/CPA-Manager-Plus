@@ -16,6 +16,7 @@ import { DatabaseMaintenanceProvider } from '@/components/common/DatabaseMainten
 import { MainRoutes } from '@/router/MainRoutes';
 import {
   IconGithub,
+  IconModelCluster,
   IconSidebarAuthFiles,
   IconSidebarConfig,
   IconSidebarDashboard,
@@ -68,6 +69,7 @@ const sidebarIcons: Record<string, ReactNode> = {
   monitoring: <IconSidebarMonitor size={SIDEBAR_ICON_SIZE} />,
   plugins: <IconSidebarPlugins size={SIDEBAR_ICON_SIZE} />,
   config: <IconSidebarConfig size={SIDEBAR_ICON_SIZE} />,
+  models: <IconModelCluster size={SIDEBAR_ICON_SIZE} />,
   logs: <IconSidebarLogs size={SIDEBAR_ICON_SIZE} />,
   system: <IconSidebarSystem size={SIDEBAR_ICON_SIZE} />,
 };
@@ -590,6 +592,12 @@ function MainLayoutContent({ routeBase = '', demoMode = false }: MainLayoutProps
         label: t('nav.ai_providers'),
         shortLabel: navShortLabel('nav.ai_providers', t('nav.ai_providers')),
         icon: sidebarIcons.aiProviders,
+      },
+      {
+        path: '/models',
+        label: t('nav.models'),
+        shortLabel: navShortLabel('nav.models', t('nav.models')),
+        icon: sidebarIcons.models,
       },
       ...pluginControlNavItems,
     ],
