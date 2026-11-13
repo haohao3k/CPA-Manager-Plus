@@ -312,6 +312,7 @@ import {
   AccountQuotaTab,
   AccountsBatchDeletePreview,
 } from '@/features/accounts/components';
+import { CursorSpendGuardLink } from '@/features/models/CursorSpendGuardLink';
 import {
   accountQuotaSnapshotApi,
   authFilesApi,
@@ -8358,6 +8359,7 @@ export function AccountsPage() {
         onChange={setProviderFilter}
         resolvedTheme={resolvedTheme}
       />
+      {providerFilter.trim().toLowerCase() === 'cursor' ? <CursorSpendGuardLink /> : null}
       <section className={styles.toolbar}>
         <div className={styles.searchField}>
           <Input

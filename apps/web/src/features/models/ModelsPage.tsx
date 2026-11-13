@@ -19,12 +19,13 @@ import { getErrorMessage } from '@/utils/helpers';
 import { ExposureTab } from './ExposureTab';
 import { CursorAliasesTab } from './CursorAliasesTab';
 import { KeyAccessTab } from './KeyAccessTab';
+import { SpendGuardTab } from './SpendGuardTab';
 import styles from './ModelsPage.module.scss';
 
-export type ModelsTab = 'exposure' | 'aliases' | 'access';
+export type ModelsTab = 'exposure' | 'aliases' | 'access' | 'spend';
 
 const isModelsTab = (value: string | null): value is ModelsTab =>
-  value === 'exposure' || value === 'aliases' || value === 'access';
+  value === 'exposure' || value === 'aliases' || value === 'access' || value === 'spend';
 
 export interface ModelsData {
   catalog: ModelCatalog;
@@ -122,6 +123,7 @@ export function ModelsPage() {
     { id: 'exposure' as const, label: t('model_exposure.tab_exposure') },
     { id: 'aliases' as const, label: t('model_exposure.tab_aliases') },
     { id: 'access' as const, label: t('model_exposure.tab_access') },
+    { id: 'spend' as const, label: t('spend_guard.tab') },
   ];
 
   return (
@@ -136,14 +138,18 @@ export function ModelsPage() {
           className={styles.tabs}
           equalWidth
         />
-        <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
-          {t('model_exposure.reload')}
-        </Button>
+        {activeTab !== 'spend' ? (
+          <Button variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
+            {t('model_exposure.reload')}
+          </Button>
+        ) : null}
       </div>
 
-      {error ? <div className={styles.errorBox}>{error}</div> : null}
+      {activeTab !== 'spend' && error ? <div className={styles.errorBox}>{error}</div> : null}
 
-      {!data ? (
+      {activeTab === 'spend' ? (
+        <SpendGuardTab />
+      ) : !data ? (
         loading ? (
           <LoadingSpinner />
         ) : null
