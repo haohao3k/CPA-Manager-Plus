@@ -10,15 +10,17 @@ export function Chip({
   kind,
   onRemove,
   disabled,
+  title,
 }: {
   value: string;
-  kind?: 'allow' | 'deny' | 'combo';
+  kind?: 'allow' | 'deny' | 'combo' | 'unavailable';
+  title?: string;
   onRemove?: () => void;
   disabled?: boolean;
 }) {
   const { t } = useTranslation();
   return (
-    <span className={styles.chip} data-kind={kind}>
+    <span className={styles.chip} data-kind={kind} title={title}>
       {value}
       {onRemove ? (
         <button

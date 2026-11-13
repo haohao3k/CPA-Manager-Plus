@@ -5515,6 +5515,8 @@
     "access_pattern_placeholder": "Шаблон, например cursor/* или combo:glm-5.3-flash",
     "access_picker_title": "Разрешено для {{label}}",
     "picker_combos": "Комбо",
-    "picker_empty": "Нет подходящих комбо или моделей."
+    "picker_empty": "Нет подходящих комбо или моделей.",
+    "alias_unavailable": "недоступен: нет учётных данных Cursor",
+    "alias_unavailable_hint": "CPA показывает и обслуживает этот псевдоним, только пока учётные данные Cursor предоставляют его модели."
   }
 }

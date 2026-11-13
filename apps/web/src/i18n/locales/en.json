@@ -5516,6 +5516,8 @@
     "access_pattern_placeholder": "Wildcard, e.g. cursor/* or combo:glm-5.3-flash",
     "access_picker_title": "Allowed for {{label}}",
     "picker_combos": "Combos",
-    "picker_empty": "No matching combos or models."
+    "picker_empty": "No matching combos or models.",
+    "alias_unavailable": "unavailable: no Cursor credential",
+    "alias_unavailable_hint": "CPA lists and serves this alias only while a Cursor credential provides its models."
   }
 }

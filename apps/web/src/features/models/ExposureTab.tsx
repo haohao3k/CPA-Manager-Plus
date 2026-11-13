@@ -373,8 +373,13 @@ export function ExposureTab({ data, onSaved }: { data: ModelsData; onSaved: () =
           {preview.map((entry) => (
             <Chip
               key={entry.id}
-              value={entry.id}
-              kind={entry.kind === 'combo' ? 'combo' : 'allow'}
+              value={
+                entry.unavailable
+                  ? `${entry.id} · ${t('model_exposure.alias_unavailable')}`
+                  : entry.id
+              }
+              kind={entry.unavailable ? 'unavailable' : entry.kind === 'combo' ? 'combo' : 'allow'}
+              title={entry.unavailable ? t('model_exposure.alias_unavailable_hint') : undefined}
             />
           ))}
         </div>

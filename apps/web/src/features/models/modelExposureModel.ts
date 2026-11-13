@@ -60,6 +60,8 @@ export interface ExposedEntry {
   id: string;
   kind: 'model' | 'alias' | 'combo';
   provider?: string;
+  /** Alias whose target provider has no registered models (no Cursor credential): CPA does not list it. */
+  unavailable?: boolean;
 }
 
 /** The /v1/models list the draft config would produce (combos unprefixed, aliases under the cursor prefix). */
@@ -82,7 +84,12 @@ export const buildExposedList = (
   const cursorPrefix =
     providerExposureFor(config, 'cursor', cursorSample?.prefix).prefix || 'cursor';
   aliases.forEach((alias) =>
-    push({ id: `${cursorPrefix}/${alias.alias}`, kind: 'alias', provider: 'cursor' })
+    push({
+      id: `${cursorPrefix}/${alias.alias}`,
+      kind: 'alias',
+      provider: 'cursor',
+      ...(cursorSample ? {} : { unavailable: true }),
+    })
   );
   models.forEach((model) => {
     if (!config.enabled) {

@@ -5511,6 +5511,8 @@
     "access_pattern_placeholder": "通配符，例如 cursor/* 或 combo:glm-5.3-flash",
     "access_picker_title": "{{label}} 允许的模型",
     "picker_combos": "组合",
-    "picker_empty": "没有匹配的组合或模型。"
+    "picker_empty": "没有匹配的组合或模型。",
+    "alias_unavailable": "不可用：无 Cursor 凭证",
+    "alias_unavailable_hint": "只有在 Cursor 凭证提供相应模型时，CPA 才会列出并提供此别名。"
   }
 }

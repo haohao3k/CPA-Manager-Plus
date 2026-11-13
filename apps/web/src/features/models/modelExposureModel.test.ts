@@ -69,6 +69,12 @@ describe('exposure rules (must agree with CLIProxyAPI)', () => {
       ['glm-5.3-flash']
     ).map((entry) => entry.id);
     expect(ids).toEqual(['glm-5.3-flash', 'cur/flash', 'cur/a']);
+    const alias = {
+      alias: 'flash',
+      defaultEffort: 'medium' as const,
+      variants: { medium: 'cursor-b' },
+    };
+    expect(buildExposedList(config, [], [alias], [])[0]).toMatchObject({ unavailable: true });
   });
 });
 

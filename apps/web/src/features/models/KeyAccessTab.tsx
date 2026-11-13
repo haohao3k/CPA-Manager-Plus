@@ -77,6 +77,7 @@ export function KeyAccessTab({
       ),
     [data.aliases, data.catalog.combos, data.catalog.models, data.exposure]
   );
+  const callable = exposed.filter((entry) => !entry.unavailable);
 
   useEffect(() => {
     focusRef.current?.scrollIntoView({ block: 'center' });
@@ -170,8 +171,8 @@ export function KeyAccessTab({
             const draft = drafts[key];
             const focused = Boolean(focusKeyHash) && hashes[key] === focusKeyHash.toLowerCase();
             const allowedCount = draft.restricted
-              ? exposed.filter((entry) => policyAllows(draft.allow, entry)).length
-              : exposed.length;
+              ? callable.filter((entry) => policyAllows(draft.allow, entry)).length
+              : callable.length;
             return (
               <div
                 key={key}
@@ -187,7 +188,7 @@ export function KeyAccessTab({
                     <span className={styles.muted}>
                       {t('model_exposure.access_allowed_count', {
                         allowed: allowedCount,
-                        total: exposed.length,
+                        total: callable.length,
                       })}
                     </span>
                   </div>
@@ -315,7 +316,14 @@ export function KeyAccessTab({
                         className={styles.pickerItem}
                         checked={isEntrySelected(drafts[pickerKey].allow, entry)}
                         onChange={(value) => toggleEntry(pickerKey, entry, value)}
-                        label={entry.id}
+                        label={
+                          entry.unavailable
+                            ? `${entry.id} · ${t('model_exposure.alias_unavailable')}`
+                            : entry.id
+                        }
+                        title={
+                          entry.unavailable ? t('model_exposure.alias_unavailable_hint') : undefined
+                        }
                       />
                     ))}
                 </div>

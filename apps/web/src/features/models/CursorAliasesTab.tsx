@@ -201,6 +201,14 @@ export function CursorAliasesTab({
                   <code>
                     {cursorPrefix}/{alias.alias}
                   </code>
+                  {cursorModels.length === 0 ? (
+                    <span
+                      className={styles.muted}
+                      title={t('model_exposure.alias_unavailable_hint')}
+                    >
+                      {t('model_exposure.alias_unavailable')}
+                    </span>
+                  ) : null}
                   <span className={styles.muted}>
                     {t('model_exposure.alias_default_effort')}: {alias.defaultEffort}
                   </span>

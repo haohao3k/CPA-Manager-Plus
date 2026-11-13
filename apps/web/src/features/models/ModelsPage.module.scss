@@ -175,6 +175,13 @@
     background: color-mix(in srgb, var(--danger-color) 8%, var(--bg-primary));
   }
 
+  &[data-kind='unavailable'] {
+    border-style: dashed;
+    border-color: var(--border-color);
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+  }
+
   &[data-kind='combo'] {
     border-color: color-mix(in srgb, var(--success-color, #16a34a) 35%, transparent);
     background: color-mix(in srgb, var(--success-color, #16a34a) 10%, var(--bg-primary));
