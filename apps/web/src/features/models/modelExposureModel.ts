@@ -171,9 +171,11 @@ export const suggestAliasFromFamily = (
 ): Pick<CursorModelAlias, 'variants' | 'defaultEffort'> => {
   const members = models.filter((model) => model.cursorFamily === family);
   const variants: Partial<Record<EffortLevel, string>> = {};
+  // Ids that declare their effort level win over ids whose level is only inferred (the bare base id).
+  const declared = (model: CatalogModel) => (model.effortLevel ? 0 : 1);
   members
     .slice()
-    .sort((a, b) => a.id.length - b.id.length)
+    .sort((a, b) => declared(a) - declared(b) || a.id.length - b.id.length)
     .forEach((model) => {
       const level = effortOf(model);
       if (!variants[level]) variants[level] = model.id;

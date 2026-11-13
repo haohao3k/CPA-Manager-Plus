@@ -108,5 +108,12 @@ describe('cursor alias suggestion', () => {
         high: 'cursor-deepseek-v41-flash-1017-high',
       },
     });
+    const declaredMedium = cursor('deepseek-v41-flash-1017-medium', {
+      cursorFamily: family,
+      effortLevel: 'medium',
+    });
+    expect(suggestAliasFromFamily(family, [...models, declaredMedium]).variants.medium).toBe(
+      'cursor-deepseek-v41-flash-1017-medium'
+    );
   });
 });
